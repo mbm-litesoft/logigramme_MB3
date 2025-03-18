@@ -1,0 +1,159 @@
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  -webkit-user-select: none;  /* Safari */
+  -ms-user-select: none;      /* IE et Edge */
+  user-select: none;      
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  html {
+    color-scheme: dark;
+  }
+}
+
+.fullHeight{
+  height: 100vh !important;
+}
+
+.scrollable {
+  overflow-y: auto; /* Permet le défilement vertical */
+  border: 1px solid #ccc; /* Pour visualiser le conteneur */
+  padding: 15px;
+}
+
+
+.maxHeight{
+  max-height: 100vh;
+}
+
+#boxs::-webkit-scrollbar {
+/* position:relative */
+}
+
+#boxs::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+#boxs::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+#boxs::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+#boxs .bg-info{
+
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 7%;
+  height: calc(100vh - 1.5vh);
+  margin: 10px;
+  opacity: 0;
+
+}
+
+.shapeMenu{
+  display: none;
+  position: absolute;
+ 
+  width:100px;
+  height: 30px;
+  background-color: #d6d5d5; 
+  z-index: 1;
+  border: 1px solid black 10%;
+}
+.shapeMenu::after{
+  content:"";
+  margin-top: 30px;
+  margin-left: -90px;
+  width: 100px;
+  height: 10px;
+ 
+}
+#boxs {
+  width: 101%;
+}
+
+.zone::after{
+  content : "";
+  position: absolute;
+  top: -9;
+  left:-8;
+  margin: auto;
+  width: 25px;
+  height: 40px;
+  background-color: #00000000;
+}
+
+.picker {
+  position: relative;
+}
+
+.swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1), inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  border-radius: 9px;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+
+.mainMenu{
+  top: 5%;
+  left: 50%;
+    transform: translate(-50%, 0);
+}
+
+
+
+
+[shape-type="5"]{
+  background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 25"><path d="M23 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H24C25.1 21 26 20.1 26 19V7C" fill="none" stroke="%23333333" stroke-width="0.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M23 3V6C23 6.55228 23.4477 7 24 7H26" fill="none" stroke="%23333333" stroke-width="0.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M23 3L26 7" fill="none" stroke="%23333333" stroke-width="0.2" stroke-linecap="round" stroke-linejoin="round"/></svg>') center no-repeat;
+}
+
