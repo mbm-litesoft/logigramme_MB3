@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { PopoverPicker } from "./PopoverPicker";
 
@@ -26,142 +26,120 @@ export default function MainLogigramme({ tool }) {
   const [blockBottom, setBlockBottom] = useState(false);
   const [blockTop, setBlockTop] = useState(false);
 
-  const [dotPosition, setDotPosition] = useState([0,0]);
-
+  const [dotPosition, setDotPosition] = useState([0, 0]);
 
   const [color, setColor] = useState("#eeee");
- 
 
   const select = (e, uuid) => {
     setMouseIsDown(true);
     setUuid(uuid);
   };
 
-
-
   function findClosestElement(referenceElement, elements) {
-    if (!elements.length) return null;
-    
+    if (!elements.length || referenceElement == null) return null;
+
     // Obtenir la position de l'élément de référence
     const refRect = referenceElement.getBoundingClientRect();
-    const refX = refRect.left ;
-    const refY = refRect.top ;
-    
+    const refX = refRect.left;
+    const refY = refRect.top;
+
     let closestElement = elements[0];
     let minDistance = Infinity;
-    
+
     // Parcourir tous les éléments et trouver le plus proche
-    elements.forEach(element => {
+    elements.forEach((element) => {
       // Ignorer l'élément de référence s'il est dans la liste
       if (element === referenceElement) return;
-      
+
       const rect = element.getBoundingClientRect();
       const x = rect.left + rect.width / 2;
       const y = rect.top + rect.height / 2;
-      
+
       // Calculer la distance euclidienne
-      const distance = Math.sqrt(
-        Math.pow(refX - x, 2) + Math.pow(refY - y, 2)
-      );
-      
+      const distance = Math.sqrt(Math.pow(refX - x, 2) + Math.pow(refY - y, 2));
+
       if (distance < minDistance) {
         minDistance = distance;
         closestElement = element;
       }
     });
-    
+
     return closestElement;
   }
 
+  // Function to create a grid of dots over the entire body
+  function createDotPattern() {
+    const dotBgColor = "#00000050";
+    const dotHoverColor = "black";
+    // Create a container for the dots
+    const dotContainer = document.createElement("div");
+    dotContainer.style.position = "absolute";
+    dotContainer.style.top = "8px";
+    dotContainer.style.left = "8px";
+    dotContainer.style.width = "100%";
+    dotContainer.style.height = "100%";
+    // So clicks pass through to elements below
+    dotContainer.id = "momo";
+    // Get the window dimensions
+    const windowWidth = 2500;
+    const windowHeight = 3000;
 
-// Function to create a grid of dots over the entire body
-function createDotPattern() {
-const dotBgColor = "#00000050";
-const dotHoverColor = "black";
-  // Create a container for the dots
-  const dotContainer = document.createElement('div');
-  dotContainer.style.position = 'absolute';
-  dotContainer.style.top = '8px';
-  dotContainer.style.left = '8px';
-  dotContainer.style.width = '100%';
-  dotContainer.style.height = '100%';
- // So clicks pass through to elements below
-  dotContainer.id = "momo"
-  // Get the window dimensions
-  const windowWidth =2500 ;
-  const windowHeight =3000;
-  
-  // The spacing between dots in pixels
-  const spacing = 25;
-  
-  // Calculate the number of dots in each dimension
-  const dotsX = Math.floor(windowWidth / spacing);
-  const dotsY = Math.floor(windowHeight / spacing);
-  
-  // Create dots and position them in a grid
-  for (let y = 0; y < dotsY; y++) {
-    for (let x = 0; x < dotsX; x++) {
-      const dot = document.createElement('div');
-      
-      // Style the dot
-      dot.style.position = 'absolute';
-      dot.style.width = '3px';
-      dot.style.height = '3px';
-      dot.style.backgroundColor = dotBgColor;
-      dot.style.borderRadius = '50%';
-      dot.setAttribute("x", `${(x * spacing) + 8}`)
-      dot.setAttribute("y", `${(y * spacing) + 8}`)
-      dot.classList.add("zone")
-      // Position the dot
-      dot.style.left = `${x * spacing}px`;
-      dot.style.top = `${y * spacing}px`;
-   
-     
+    // The spacing between dots in pixels
+    const spacing = 25;
 
-       // Rendre les points plus interactifs
-       dot.addEventListener('mouseover', function() {
-      
-        // if (tool.tool !== 0) { // Seulement si un outil de dessin est actif}
-         
-          this.style.backgroundColor = dotHoverColor
-          setDotPosition([this.getAttribute("x"), this.getAttribute("y")])
-          
-        
-      });
-      dot.addEventListener('mouseleave', function() {
-     
-        // if (tool.tool !== 0) { // Seulement si un outil de dessin est actif}
-         
-           this.style.backgroundColor = dotBgColor
-        
-      });
+    // Calculate the number of dots in each dimension
+    const dotsX = Math.floor(windowWidth / spacing);
+    const dotsY = Math.floor(windowHeight / spacing);
 
-      // Add the dot to the container
-      dotContainer.appendChild(dot);
-    
+    // Create dots and position them in a grid
+    for (let y = 0; y < dotsY; y++) {
+      for (let x = 0; x < dotsX; x++) {
+        const dot = document.createElement("div");
+
+        // Style the dot
+        dot.style.position = "absolute";
+        dot.style.width = "3px";
+        dot.style.height = "3px";
+        dot.style.backgroundColor = dotBgColor;
+        dot.style.borderRadius = "50%";
+        dot.setAttribute("x", `${x * spacing + 8}`);
+        dot.setAttribute("y", `${y * spacing + 8}`);
+        dot.classList.add("zone");
+        // Position the dot
+        dot.style.left = `${x * spacing}px`;
+        dot.style.top = `${y * spacing}px`;
+
+        // Rendre les points plus interactifs
+        dot.addEventListener("mouseover", function () {
+          // if (tool.tool !== 0) { // Seulement si un outil de dessin est actif}
+
+          this.style.backgroundColor = dotHoverColor;
+          setDotPosition([this.getAttribute("x"), this.getAttribute("y")]);
+        });
+        dot.addEventListener("mouseleave", function () {
+          // if (tool.tool !== 0) { // Seulement si un outil de dessin est actif}
+
+          this.style.backgroundColor = dotBgColor;
+        });
+
+        // Add the dot to the container
+        dotContainer.appendChild(dot);
+      }
     }
+
+    // Add the container to the document body
+    document.querySelector(".openDiv").appendChild(dotContainer);
   }
-  
-  // Add the container to the document body
-  document.querySelector(".openDiv").appendChild(dotContainer);
 
-
-
-}
-
-
-
-useEffect(() => {
-  createDotPattern()
-}, []);
-
-
-
+  useEffect(() => {
+    createDotPattern();
+  }, []);
 
   const setElementPosition = (e) => {
+    console.log("sdgsdg")
     const el = elements.find((el) => el.id === uuid);
 
-    if ( isDown && uuid !== null) {
+    if (isDown && uuid !== null) {
       const rect1 = document.getElementById(uuid).getBoundingClientRect();
 
       // bouge avec le scroll tache ern pause
@@ -185,7 +163,7 @@ useEffect(() => {
         rect3.bottom
       );
 
-      console.log("mousemove + pos", typeof(e.movementX) + typeof(elements[0].x));
+      console.log("mousemove + pos", typeof e.movementX + typeof elements[0].x);
 
       let move = 0;
       if (rect1.right > rect3.right - 10) {
@@ -215,15 +193,13 @@ useEffect(() => {
       } else if (blockBottom && e.movementY < 0) {
         setBlockBottom(false);
       }
-console.log(dotPosition)
+      console.log(dotPosition);
       if (move === 0) {
         if (!blockLeft && !blockRight && !blockTop && !blockBottom) {
-      
           setElements((prevElements) => {
             return prevElements.map((element) => {
               if (element.id === uuid) {
                 return {
-                  
                   ...element,
                   x: parseInt(element.x) + e.movementX,
                   y: parseInt(element.y) + e.movementY,
@@ -248,131 +224,140 @@ console.log(dotPosition)
     }
   };
 
-
   // Créez un ref pour suivre les dimensions par défaut
-// Ajoutez au début du composant:
-// const defaultDimensions = useRef({ width: 103, height: 103 });
-const defaultDimensions = useRef({ width: 103, height: 103 });
-const mouseIsDown = (e) => {
-  
+  // Ajoutez au début du composant:
+  // const defaultDimensions = useRef({ width: 103, height: 103 });
+  const defaultDimensions = useRef({ width: 103, height: 103 });
+  const mouseIsDown = (e) => {
+    if (tool.tool !== 0) {
+      setMouseIsDown(true);
 
-  if (tool.tool !== 0) {
-    setMouseIsDown(true);
-    
-    // Générer un nouvel UUID pour cet élément
-    const newId = uuidv4();
+      // Générer un nouvel UUID pour cet élément
+      const newId = uuidv4();
 
-    // Obtenir la position du conteneur
-    const containerRect = document.querySelector(".openDiv").getBoundingClientRect();
-    
-    // Définir une forme avec dimensions par défaut
-    let newShape = {
-      id: newId,
-      x: dotPosition[0],
-      y: dotPosition[1],
-      width: defaultDimensions.current.width,
-      height: defaultDimensions.current.height,
-      bgColor: "white",
-      border: "1px solid gray",
-    };
-    
-    // Appliquer le type de forme
-    switch (tool.tool) {
-      case 1: // Rectangle
-        newShape = {
-          ...newShape,
-          type: 1,
-          radius: "15%",
-          transform: "",
-        };
-        break;
-      case 2: // Cercle
-        newShape = {
-          ...newShape,
-          type: 2,
-          radius: "50%",
-          transform: "",
-        };
-        break;
-      case 3: // Polygone/diamant
-        newShape = {
-          ...newShape,
-          type: 3,
-          radius: "5%",
-          transform: "rotate(45deg)",
-        };
-        break;
+      // Obtenir la position du conteneur
+      const containerRect = document
+        .querySelector(".openDiv")
+        .getBoundingClientRect();
+      afters(defaultDimensions.current.width);
+      // Définir une forme avec dimensions par défaut
+      let newShape = {
+        id: newId,
+        x: dotPosition[0],
+        y: dotPosition[1],
+        width: defaultDimensions.current.width,
+        height: defaultDimensions.current.height,
+        bgColor: "white",
+        border: "1px solid gray",
+      };
+
+      // Appliquer le type de forme
+      switch (tool.tool) {
+        case 1: // Rectangle
+          newShape = {
+            ...newShape,
+            type: 1,
+            radius: "15%",
+            transform: "",
+          };
+          break;
+        case 2: // Cercle
+          newShape = {
+            ...newShape,
+            type: 2,
+            radius: "50%",
+            transform: "",
+          };
+          break;
+        case 3: // Polygone/diamant
+          newShape = {
+            ...newShape,
+            type: 3,
+            radius: "5%",
+            transform: "rotate(45deg)",
+          };
+          break;
         case 4:
           newShape = {
             ...newShape,
             type: 4,
             radius: "5%",
             transform: "skewX(-15deg)",
-            };
-         
-        break;
+          };
+
+          break;
         case 5:
           newShape = {
             ...newShape,
-          type: 5,
-          radius: "5%",
-          }
-        break;
-      default:
-        newShape = {
-          ...newShape,
-          type: 0,
-        };
-        break;
+            type: 5,
+            width: newShape.width + 5,
+            height: newShape.height + 5,
+            bgColor: "none",
+            border: "none",
+          };
+          break;
+        default:
+          newShape = {
+            ...newShape,
+            type: 0,
+          };
+          break;
+      }
+
+      // Mettre à jour le style actuel
+      setStyle(newShape);
+
+      // Ajouter l'élément au tableau
+      setElements((prevElements) => [...prevElements, newShape]);
+
+      // Stocker l'UUID pour le dimensionnement
+      setUuid(newId);
     }
-    
-    // Mettre à jour le style actuel
-    setStyle(newShape);
-    
-    // Ajouter l'élément au tableau
-    setElements(prevElements => [...prevElements, newShape]);
-    
-    // Stocker l'UUID pour le dimensionnement
-    setUuid(newId);
-  }
-};
+  };
 
   const mouseIsUp = (closest) => {
     setMouseIsDown(false);
-   console.log(closest,"log")
-    if (closest != null) {
-      
-        const reference = document.getElementById(uuid);
-        const otherElements = Array.from(document.querySelector("#momo").children);
-        const closest = findClosestElement(reference, otherElements);
 
-        closest.style.backgroundColor = "red";
-        console.log(closest.getAttribute("y"));
-        document.getElementById(uuid).style.top = closest.getAttribute("y") + "px";
-        document.getElementById(uuid).style.left = closest.getAttribute("x") + "px";
-        console.log(closest,"log2")
-        setElements((prevElements) => {
-          return prevElements.map((element) => {
-            if (element.id === uuid) {
-              return {
-                ...element,
-                x: closest.getAttribute("x"),
-                y: closest.getAttribute("y"),
-              };
-            } else {
-              return element;
-            }
-          });
+    
+
+    console.log(closest, "log");
+    if (closest != null && tool.tool == 0) {
+      const reference = document.getElementById(uuid);
+      const otherElements = Array.from(
+        document.querySelector("#momo").children
+      );
+      const closest = findClosestElement(reference, otherElements);
+      if (closest == null) return;
+      closest.style.backgroundColor = "red";
+      console.log(closest.getAttribute("y"));
+      document.getElementById(uuid).style.top =
+        closest.getAttribute("y") + "px";
+      document.getElementById(uuid).style.left =
+        closest.getAttribute("x") + "px";
+      console.log(closest, "log2");
+      setElements((prevElements) => {
+        return prevElements.map((element) => {
+          if (element.id === uuid) {
+            return {
+              ...element,
+              x: closest.getAttribute("x"),
+              y: closest.getAttribute("y"),
+            };
+          } else {
+            return element;
+          }
         });
+      });
+    }
   };
-}
 
   const setDimensions = (e) => {
     if (isDown && tool.tool !== 0) {
-     
-      
-      let number = 25;
+      console.log(document.getElementById("input" + uuid).style.zIndex, "erfg")
 
+     
+     
+      let number = 25;
       // Mettre à jour le style local en fonction du type d'outil
       if (tool.tool === 2) {
         // Cercle - même largeur et hauteur
@@ -389,7 +374,7 @@ const mouseIsDown = (e) => {
             height: Math.max(20, prevStyle.width - number),
           }));
         }
-      } else if (tool.tool === 1) {
+      } else if (tool.tool === 1 || tool.tool === 5) {
         // Rectangle - dimensions indépendantes
         if (e.movementX > 0) {
           setStyle((prevStyle) => ({
@@ -430,20 +415,113 @@ const mouseIsDown = (e) => {
           }));
         }
       }
-  
+
       // Mettre à jour l'élément actif dans le tableau
       setElements((prevElements) => {
-        return prevElements.map((element) =>
-          element.id === uuid
-            ? {
-                ...element,
-                width: style.width,
-                height: style.height,
-              }
-            : element
-        );
+        return prevElements.map((element) => {
+          if (element.id === uuid) {
+            afters(style.width);
+            return {
+              ...element,
+              width: style.width,
+              height: style.height,
+            };
+          } else {
+            return element;
+          }
+        });
       });
     }
+  
+  };
+
+  const changeShapeColor = (newColor) => {
+    console.log(color, "zrb");
+    setElements((prevElements) => {
+      return prevElements.map((element) => {
+        if (element.id === uuid) {
+          return {
+            ...element,
+            bgColor: newColor,
+          };
+        } else {
+          return element;
+        }
+      });
+    });
+  };
+
+  const manageInput = () => {
+    tool.tool = 0;
+    console.log("logfgj")
+    const el = document.getElementById("input" + uuid);
+    el.style.zIndex = 1
+    el.removeAttribute("disabled");
+    el.focus();
+  };
+
+  const setTextElement = () => {
+    console.log(color, "zrb");
+    const el = document.getElementById("input" + uuid);
+    setElements((prevElements) => {
+      return prevElements.map((element) => {
+        if (element.id === uuid) {
+          return {
+            ...element,
+            text: el.value,
+          };
+        } else {
+          return element;
+        }
+      });
+    });
+  };
+
+  const menu = (uuid) => {
+    setUuid(uuid);
+    console.log(document.getElementById(uuid).style.left, "erhsf");
+    document.querySelector(".shapeMenu").style.display = "flex";
+    document.querySelector(".shapeMenu").style.left =
+      parseInt(document.getElementById(uuid).style.left) +
+      parseInt(document.getElementById(uuid).style.width) -
+      100 +
+      "px";
+    document.querySelector(".shapeMenu").style.top =
+      parseInt(document.getElementById(uuid).style.top) - 45 + "px";
+  };
+  const deleteElement = () => {
+    setElements((prevElements) => {
+      return prevElements.map((element) => {
+        if (element.id === uuid) {
+          return {};
+        } else {
+          return element;
+        }
+      });
+    });
+
+    document.querySelector(".shapeMenu").style.display = "none";
+  };
+
+  const afters = (width) => {
+    // Sélectionner la div shapeMenu
+    const shapeMenu = document.querySelector(".shapeMenu");
+    // Créer une feuille de style dynamique
+    const styleSheet = document.createElement("style");
+    document.head.appendChild(styleSheet);
+
+    // Définir le style ::after pour cette classe
+    styleSheet.textContent = `
+.shapeMenu::after {
+  content:"";
+  margin-top: 30px;
+  margin-left: -90px;
+  width: ${width}px;
+  height: 44px;
+}`;
+
+    // Assurez-vous que la div a position relative
+    shapeMenu.style.position = "relative";
   };
 
   return (
@@ -452,13 +530,11 @@ const mouseIsDown = (e) => {
         flex: "auto",
         width: "84%",
       }}
-
     >
       <div
         id="boxs"
-        
-        
-         onMouseMove={(e) => {
+        onMouseMove={(e) => {
+          console.log(tool.tool, isDown, "zegdsdf")
           if (isDown) {
             if (tool.tool !== 0) {
               setDimensions(e);
@@ -467,7 +543,6 @@ const mouseIsDown = (e) => {
             }
           }
         }}
-        
         // onMouseLeave={(e) => verifyPosition(e)}
         className="col fullHeight "
         style={{
@@ -481,9 +556,27 @@ const mouseIsDown = (e) => {
       >
         <div
           className="openDiv"
-         
-          onMouseDown={(e) => (tool.tool !== 0 ? mouseIsDown(e) : null)}
-        
+          onMouseDown={(e) =>
+            (tool.tool !== 0 &&
+             ( document.querySelector(".shapeMenu").style.display == "none") ||
+            document.querySelector(".shapeMenu").style.display == "")
+              ? [
+                mouseIsDown(e), 
+                document.getElementById("input" + uuid) != null ?
+                [
+                  document.getElementById("input" + uuid)
+                .setAttribute("disabled", true)
+              ]
+                : 
+                null 
+              ]
+              :
+                [
+                  document.getElementById("input" + uuid)
+                .setAttribute("disabled", true)
+               
+              ]
+          }
           onMouseUp={mouseIsUp}
           style={{
             position: "relative",
@@ -492,7 +585,7 @@ const mouseIsDown = (e) => {
             background: "white",
           }}
         >
- <div
+          <div
             className="shapeMenu"
             onMouseOver={() => {
               menu(uuid);
@@ -516,11 +609,17 @@ const mouseIsDown = (e) => {
               src="/icons/trash.png"
             />
           </div>
-
           {elements.map((elementStyle, index) => (
             <div
+            onMouseUp={() => mouseIsUp}
+              onMouseOut={() => {
+                document.querySelector(".shapeMenu").style.display = "none";
+              }}
+              onMouseOver={() => {
+                !isDown ? menu(elementStyle.id) : null;
+              }}
               id={elementStyle.id}
-              onMouseDown={(e) => select(e, elementStyle.id)}
+              onMouseDown={(e) => [select(e, elementStyle.id), console.log("dsf")]}
               key={elementStyle.id}
               style={{
                 position: "absolute",
@@ -534,7 +633,36 @@ const mouseIsDown = (e) => {
                 transform: elementStyle.transform,
               }}
               shape-type={elementStyle.type}
-            ></div>
+            >
+              <input
+                // onMouseOut={() => {
+                //   setMouseIsDown();
+                // }}
+                onMouseDown={(e) => [select(e, elementStyle.id), console.log("dsf")]}
+                id={"input" + elementStyle.id}
+                className="text-dark"
+                type="text"
+                disabled
+                style={{
+                  position: "absolute",
+                  width: `${elementStyle.width - 25}px`,
+                  height: `${elementStyle.height - 25}px`,
+                  border: "none",
+                  borderRadius: elementStyle.radius,
+                  backgroundColor: "transparent",
+                  top: "50%",
+                  left: "50%",
+                  transform: "translate(-50%, -50%)",
+                  zIndex: "1",
+                }}
+                onChange={() => [
+                  setTextElement(
+                    document.getElementById("input" + elementStyle.id).value
+                  ),
+                ]}
+                value={elementStyle.text}
+              />
+            </div>
           ))}
         </div>
       </div>
