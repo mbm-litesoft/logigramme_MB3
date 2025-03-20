@@ -35,6 +35,32 @@ export default function MainLogigramme({ tool }) {
     setUuid(uuid);
   };
 
+  const dotSelected = useRef(false);
+  const dotUuid = useRef("");
+  const lineUuid = useRef("");
+  // Effet qui se déclenche quand la prop tool change
+  useEffect(() => {
+    console.log("L'outil a changé:", tool);
+
+    if (tool.tool > 5) {
+      const cc = document.querySelectorAll("[shape-type]");
+      cc.forEach((element) => {
+        const spans = element.querySelectorAll("span");
+        spans.forEach((element) => {
+          element.style.display = "flex";
+        });
+      });
+    } else {
+      const cc = document.querySelectorAll("[shape-type]");
+      cc.forEach((element) => {
+        const spans = element.querySelectorAll("span");
+        spans.forEach((element) => {
+          element.style.display = "none";
+        });
+      });
+    }
+  }, [tool]); // Le useEffect se déclenche à chaque changement de la prop tool
+
   function findClosestElement(referenceElement, elements) {
     if (!elements.length || referenceElement == null) return null;
 
@@ -376,37 +402,122 @@ export default function MainLogigramme({ tool }) {
     if (!hover) {
       return findClosestElement(reference, otherElements);
     } else {
-      const dotsz = findSideDotsMarker(reference, otherElements);
-
-      dotsz.forEach((element) => {
-        let child = document.createElement("span");
-        child.style.width = "10px";
-        child.style.height = "10px";
-        child.style.backgroundColor = "blue";
-        child.style.borderRadius = "50%";
-        child.style.position = "absolute";
-        child.style.left = element.style.left;
-        child.style.top = element.style.top;
-        console.log(element, "dgssdge");
-        document.querySelector(".openDiv").appendChild(child);
-      });
-      console.log("qefeq");
+      return findSideDotsMarker(reference, otherElements);
     }
   };
 
-  const removeSideDots = () => {
-    // Sélectionner la div (remplacez 'maDiv' par l'ID de votre div)
-    const div = document.getElementById(uuid);
-
-    // Sélectionner tous les spans à l'intérieur de la div
-    const spans = div.querySelectorAll("span");
-
-    spans.forEach((span) => {
-      span.remove();
-    });
-  };
-
   const mouseIsUp = () => {
+    const elements = [];
+    for (let i = 0; i < 4; i++) {
+      const element = document.createElement("span");
+      element.style.backgroundColor = "blue";
+      element.style.borderRadius = "50%";
+      element.style.width = "10px";
+      element.style.height = "10px";
+      element.style.position = "absolute";
+      element.classList.add("sideDots");
+      element.setAttribute("id", uuidv4());
+
+      switch (i) {
+        case 0:
+          element.style.top = "50%";
+          element.style.left = "-30px";
+          element.style.transform = "translate(0, -50%)";
+          element.setAttribute("side", "left");
+          break;
+        case 1:
+          element.style.top = "50%";
+          element.style.right = "-30px";
+          element.style.transform = "translate(0, -50%)";
+          element.setAttribute("side", "right");
+          break;
+        case 2:
+          element.style.top = "-25px";
+          element.style.right = "45%";
+          element.style.transform = "translate(0, -50%)";
+          element.setAttribute("side", "top");
+          break;
+        case 3:
+          element.style.bottom = "-35px";
+          element.style.left = "45%";
+          element.style.transform = "translate(0, -50%)";
+          element.setAttribute("side", "bottom");
+          break;
+        default:
+      }
+
+      element.addEventListener("click", function () {
+        console.log("xsq0");
+        if (!dotSelected.current) {
+          dotSelected.current = true;
+
+          dotUuid.current = element.getAttribute("id");
+        } else {
+          console.log("xsq2");
+
+          dotSelected.current = false;
+
+          let div = document.createElement("div");
+          div.setAttribute("id", "t1");
+
+          // Créer l'élément SVG
+          const svg = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "svg"
+          );
+
+          const rect = element.getBoundingClientRect();
+          const rect2 = document
+            .getElementById(dotUuid.current)
+            .getBoundingClientRect();
+
+          svg.setAttribute("width", rect.left - rect2.left + 8);
+          svg.setAttribute("height", rect.top - rect2.top + 5);
+          svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+          svg.style.position = "absolute";
+
+          for (let i = 0; i < 2; i++) {
+            // Créer l'élément ligne
+            const line = document.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "line"
+            );
+
+            if (lineUuid.current != "") {
+              
+           
+              line.setAttribute("x1", (rect.left - rect2.left) / 2);
+              line.setAttribute("y1", 0);
+              line.setAttribute("x2", (rect.left - rect2.left) / 2);
+              line.setAttribute("y2", rect.top - rect2.top + 5);
+              line.setAttribute("stroke", "red");
+              line.setAttribute("stroke-width", 4);
+             
+
+              svg.append(line);
+            } else {
+              line.setAttribute("x1", 8);
+              line.setAttribute("y1", 0);
+              line.setAttribute("x2", (rect.left - rect2.left) / 2);
+              line.setAttribute("y2", 0);
+              line.setAttribute("stroke", "red");
+              line.setAttribute("stroke-width", 4);
+              lineUuid.current = uuidv4;
+
+              svg.append(line);
+            }
+          }
+
+          // Ajouter la ligne au SVG
+
+          document.getElementById(dotUuid.current).appendChild(svg);
+          element.appendChild(div);
+        }
+      });
+
+      document.getElementById(uuid).appendChild(element);
+    }
+
     setMouseIsDown(false);
 
     if (tool.tool == 0) {
@@ -693,12 +804,10 @@ export default function MainLogigramme({ tool }) {
             <div
               onMouseUp={() => mouseIsUp}
               onMouseOut={() => {
-                [document.querySelector(".shapeMenu").style.display = "none", removeSideDots()];
+                document.querySelector(".shapeMenu").style.display = "none";
               }}
               onMouseOver={() => {
-                !isDown
-                  ? [menu(elementStyle.id), prepareFindElement(true)]
-                  : null;
+                !isDown ? menu(elementStyle.id) : null;
               }}
               id={elementStyle.id}
               onMouseDown={(e) => [

@@ -162,3 +162,11 @@ a {
   color: black;
   font-size: 18px;
 }
+
+.sideDots{
+  display: none;
+}
+#t1 {
+  display: flex;
+  font-size: 2rem;
+}

@@ -2,7 +2,6 @@
 "use client";
 import { useState } from "react";
 import './globals.css';
-import Button from '../components/Box.jsx'
 import MainLogigramme from '../components/MainLogigramme.jsx'
 
 
