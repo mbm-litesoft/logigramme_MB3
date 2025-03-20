@@ -32,7 +32,7 @@ export default function Home() {
 
             <div className="ms-auto" onClick={() =>  setTool({tool: 6})}><img src="icons/arrow.png" /></div>
             <div className="" onClick={() =>  setTool({tool: 7})}><img src="icons/dotted-arrow.png" /></div>
-            
+            <div className="dotsMenu" onClick={() =>  setTool({tool: 8})}>••••</div>
           </div>
         </div>
         <MainLogigramme tool={tool}/>

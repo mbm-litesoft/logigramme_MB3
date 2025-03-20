@@ -67,6 +67,60 @@ export default function MainLogigramme({ tool }) {
     return closestElement;
   }
 
+  function findSideDotsMarker(referenceElement, elements) {
+    if (!elements.length || referenceElement == null) return null;
+
+    // Obtenir la position de l'élément de référence
+    const refRect = referenceElement.getBoundingClientRect();
+    const refX = [
+      refRect.left - 25,
+      refRect.right + 25,
+      refRect.left + refRect.width / 2,
+      refRect.left + refRect.width / 2,
+    ];
+    const refY = [
+      refRect.top + refRect.height / 2,
+      refRect.top + refRect.height / 2,
+      refRect.top - 25,
+      refRect.bottom + 25,
+    ];
+
+    let dots = [];
+
+    const find = (referenceElement, elements, refX, refY) => {
+      let minDistance = Infinity;
+      let el = null;
+      // Parcourir tous les éléments et trouver le plus proche
+      elements.forEach((element) => {
+        // Ignorer l'élément de référence s'il est dans la liste
+        if (element === referenceElement) return;
+
+        const rect = element.getBoundingClientRect();
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+
+        // Calculer la distance euclidienne
+        const distance = Math.sqrt(
+          Math.pow(refX - x, 2) + Math.pow(refY - y, 2)
+        );
+
+        if (distance < minDistance) {
+          minDistance = distance;
+          //  console.log(element, "dsggds")
+          el = element;
+        }
+      });
+      return el;
+    };
+
+    for (let i = 0; i < 4; i++) {
+      //  console.log("dsggds"+ refY[i])
+      dots.push(find(referenceElement, elements, refX[i], refY[i]));
+    }
+    console.log(dots, "dsggds");
+    return dots;
+  }
+
   // Function to create a grid of dots over the entire body
   function createDotPattern() {
     const dotBgColor = "#00000050";
@@ -116,11 +170,11 @@ export default function MainLogigramme({ tool }) {
           this.style.backgroundColor = dotHoverColor;
           setDotPosition([this.getAttribute("x"), this.getAttribute("y")]);
         });
-        dot.addEventListener("mouseleave", function () {
-          // if (tool.tool !== 0) { // Seulement si un outil de dessin est actif}
+        // dot.addEventListener("mouseleave", function () {
+        //   // if (tool.tool !== 0) { // Seulement si un outil de dessin est actif}
 
-          this.style.backgroundColor = dotBgColor;
-        });
+        //   this.style.backgroundColor = dotBgColor;
+        // });
 
         // Add the dot to the container
         dotContainer.appendChild(dot);
@@ -136,7 +190,7 @@ export default function MainLogigramme({ tool }) {
   }, []);
 
   const setElementPosition = (e) => {
-    console.log("sdgsdg")
+    console.log("sdgsdg");
     const el = elements.find((el) => el.id === uuid);
 
     if (isDown && uuid !== null) {
@@ -315,18 +369,48 @@ export default function MainLogigramme({ tool }) {
     }
   };
 
-  const mouseIsUp = (closest) => {
+  const prepareFindElement = (hover) => {
+    const reference = document.getElementById(uuid);
+    const otherElements = Array.from(document.querySelector("#momo").children);
+
+    if (!hover) {
+      return findClosestElement(reference, otherElements);
+    } else {
+      const dotsz = findSideDotsMarker(reference, otherElements);
+
+      dotsz.forEach((element) => {
+        let child = document.createElement("span");
+        child.style.width = "10px";
+        child.style.height = "10px";
+        child.style.backgroundColor = "blue";
+        child.style.borderRadius = "50%";
+        child.style.position = "absolute";
+        child.style.left = element.style.left;
+        child.style.top = element.style.top;
+        console.log(element, "dgssdge");
+        document.querySelector(".openDiv").appendChild(child);
+      });
+      console.log("qefeq");
+    }
+  };
+
+  const removeSideDots = () => {
+    // Sélectionner la div (remplacez 'maDiv' par l'ID de votre div)
+    const div = document.getElementById(uuid);
+
+    // Sélectionner tous les spans à l'intérieur de la div
+    const spans = div.querySelectorAll("span");
+
+    spans.forEach((span) => {
+      span.remove();
+    });
+  };
+
+  const mouseIsUp = () => {
     setMouseIsDown(false);
 
-    
-
-    console.log(closest, "log");
-    if (closest != null && tool.tool == 0) {
-      const reference = document.getElementById(uuid);
-      const otherElements = Array.from(
-        document.querySelector("#momo").children
-      );
-      const closest = findClosestElement(reference, otherElements);
+    if (tool.tool == 0) {
+      const closest = prepareFindElement(false);
       if (closest == null) return;
       closest.style.backgroundColor = "red";
       console.log(closest.getAttribute("y"));
@@ -353,10 +437,8 @@ export default function MainLogigramme({ tool }) {
 
   const setDimensions = (e) => {
     if (isDown && tool.tool !== 0) {
-      console.log(document.getElementById("input" + uuid).style.zIndex, "erfg")
+      console.log(document.getElementById("input" + uuid).style.zIndex, "erfg");
 
-     
-     
       let number = 25;
       // Mettre à jour le style local en fonction du type d'outil
       if (tool.tool === 2) {
@@ -432,7 +514,6 @@ export default function MainLogigramme({ tool }) {
         });
       });
     }
-  
   };
 
   const changeShapeColor = (newColor) => {
@@ -453,9 +534,9 @@ export default function MainLogigramme({ tool }) {
 
   const manageInput = () => {
     tool.tool = 0;
-    console.log("logfgj")
+    console.log("logfgj");
     const el = document.getElementById("input" + uuid);
-    el.style.zIndex = 1
+    el.style.zIndex = 1;
     el.removeAttribute("disabled");
     el.focus();
   };
@@ -534,7 +615,7 @@ export default function MainLogigramme({ tool }) {
       <div
         id="boxs"
         onMouseMove={(e) => {
-          console.log(tool.tool, isDown, "zegdsdf")
+          console.log(tool.tool, isDown, "zegdsdf");
           if (isDown) {
             if (tool.tool !== 0) {
               setDimensions(e);
@@ -558,24 +639,23 @@ export default function MainLogigramme({ tool }) {
           className="openDiv"
           onMouseDown={(e) =>
             (tool.tool !== 0 &&
-             ( document.querySelector(".shapeMenu").style.display == "none") ||
-            document.querySelector(".shapeMenu").style.display == "")
+              document.querySelector(".shapeMenu").style.display == "none") ||
+            document.querySelector(".shapeMenu").style.display == ""
               ? [
-                mouseIsDown(e), 
-                document.getElementById("input" + uuid) != null ?
-                [
-                  document.getElementById("input" + uuid)
-                .setAttribute("disabled", true)
-              ]
-                : 
-                null 
-              ]
-              :
-                [
-                  document.getElementById("input" + uuid)
-                .setAttribute("disabled", true)
-               
-              ]
+                  mouseIsDown(e),
+                  document.getElementById("input" + uuid) != null
+                    ? [
+                        document
+                          .getElementById("input" + uuid)
+                          .setAttribute("disabled", true),
+                      ]
+                    : null,
+                ]
+              : [
+                  document
+                    .getElementById("input" + uuid)
+                    .setAttribute("disabled", true),
+                ]
           }
           onMouseUp={mouseIsUp}
           style={{
@@ -611,15 +691,20 @@ export default function MainLogigramme({ tool }) {
           </div>
           {elements.map((elementStyle, index) => (
             <div
-            onMouseUp={() => mouseIsUp}
+              onMouseUp={() => mouseIsUp}
               onMouseOut={() => {
-                document.querySelector(".shapeMenu").style.display = "none";
+                [document.querySelector(".shapeMenu").style.display = "none", removeSideDots()];
               }}
               onMouseOver={() => {
-                !isDown ? menu(elementStyle.id) : null;
+                !isDown
+                  ? [menu(elementStyle.id), prepareFindElement(true)]
+                  : null;
               }}
               id={elementStyle.id}
-              onMouseDown={(e) => [select(e, elementStyle.id), console.log("dsf")]}
+              onMouseDown={(e) => [
+                select(e, elementStyle.id),
+                console.log("dsf"),
+              ]}
               key={elementStyle.id}
               style={{
                 position: "absolute",
@@ -638,7 +723,10 @@ export default function MainLogigramme({ tool }) {
                 // onMouseOut={() => {
                 //   setMouseIsDown();
                 // }}
-                onMouseDown={(e) => [select(e, elementStyle.id), console.log("dsf")]}
+                onMouseDown={(e) => [
+                  select(e, elementStyle.id),
+                  console.log("dsf"),
+                ]}
                 id={"input" + elementStyle.id}
                 className="text-dark"
                 type="text"

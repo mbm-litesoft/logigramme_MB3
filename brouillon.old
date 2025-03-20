@@ -1,0 +1,37 @@
+ const elements = []
+    for (let i = 0; i < 4; i++) {
+      const element = document.createElement("span");
+      element.style.backgroundColor = "blue";
+      element.style.borderRadius = "50%";
+      element.style.width = "10px";
+      element.style.height = "10px";
+      element.style.position = "absolute";
+      element.style.top = "50%";
+      switch (i) {
+        case 0:
+          element.style.top = "50%";
+          element.style.left = "-25px";
+          element.style.transform = "translate(0, -50%)";
+
+          break;
+        case 1:
+          element.style.top = "50%";
+          element.style.right = "-25px";
+          element.style.transform = "translate(0, -50%)";
+
+          break;
+        case 2:
+          element.style.top = "25px";
+          element.style.right = "50%";
+          element.style.transform = "translate(0, -50%)";
+
+          break;
+        case 3:
+          element.style.bottom = "-25px";
+          element.style.left = "50%";
+
+          break;
+        default:
+      }
+      document.getElementById(uuid).appendChild(element)
+    }
