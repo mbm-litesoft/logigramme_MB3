@@ -9,12 +9,11 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "bootstrap": "^5.3.3",
     "next": "15.2.1",
-      "bootstrap": "^5.3.3",
-      "uuid": "^11.1.0"
-    
+    "react": "^19.0.0",
+    "react-colorful": "^5.6.1",
+    "react-dom": "^19.0.0",
+    "uuid": "^11.1.0"
   }
-  
 }
