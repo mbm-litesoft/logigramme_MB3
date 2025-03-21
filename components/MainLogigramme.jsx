@@ -38,6 +38,8 @@ export default function MainLogigramme({ tool }) {
   const dotSelected = useRef(false);
   const dotUuid = useRef("");
   const lineUuid = useRef("");
+  const direction = useRef("");
+  const firstLinePosition = useRef({ x: 0, y: 0 });
   // Effet qui se déclenche quand la prop tool change
   useEffect(() => {
     console.log("L'outil a changé:", tool);
@@ -470,11 +472,27 @@ export default function MainLogigramme({ tool }) {
           const rect2 = document
             .getElementById(dotUuid.current)
             .getBoundingClientRect();
-
+          console.log(Math.abs(rect.top - rect2.top), "zrgg")
           svg.setAttribute("width", rect.left - rect2.left + 8);
-          svg.setAttribute("height", rect.top - rect2.top + 5);
+          svg.setAttribute("height", Math.abs(rect.top - rect2.top) + 15);
           svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
           svg.style.position = "absolute";
+
+
+
+          if (rect2.left < rect.left) {
+
+            direction.current = rect2.top < rect.top ? "bottom" : "top";
+            if (direction.current == "top") {
+              svg.style.top = (rect.top - rect2.top) + "px";
+            }
+          } else {
+            direction.current = "straight";
+          }
+
+
+          console.log(direction.current, "zrgg")
+
 
           for (let i = 0; i < 2; i++) {
             // Créer l'élément ligne
@@ -482,30 +500,67 @@ export default function MainLogigramme({ tool }) {
               "http://www.w3.org/2000/svg",
               "line"
             );
+            line.setAttribute("stroke-width", 8);
+            line.setAttribute("stroke", "red");
+            if (direction.current == "top" && document.getElementById(dotUuid.current).getAttribute("side") == "bottom") {
+              if (lineUuid.current != "") {
 
-            if (lineUuid.current != "") {
-              
-           
-              line.setAttribute("x1", (rect.left - rect2.left) / 2);
-              line.setAttribute("y1", 0);
-              line.setAttribute("x2", (rect.left - rect2.left) / 2);
-              line.setAttribute("y2", rect.top - rect2.top + 5);
-              line.setAttribute("stroke", "red");
-              line.setAttribute("stroke-width", 4);
+ 
+
+                line.setAttribute("x1", firstLinePosition.current.x);
+                line.setAttribute("y1", firstLinePosition.current.y);
+                line.setAttribute("x2",  firstLinePosition.current.x);
+                line.setAttribute("y2", rect.top - rect2.top + 7 );
              
+             
+  
+  
+                svg.append(line);
 
-              svg.append(line);
-            } else {
-              line.setAttribute("x1", 8);
-              line.setAttribute("y1", 0);
-              line.setAttribute("x2", (rect.left - rect2.left) / 2);
-              line.setAttribute("y2", 0);
-              line.setAttribute("stroke", "red");
-              line.setAttribute("stroke-width", 4);
-              lineUuid.current = uuidv4;
+              }else{
 
-              svg.append(line);
+              line.setAttribute("x1", 5);
+              line.setAttribute("y1", Math.abs(rect.top - rect2.top));
+                line.setAttribute("x2", rect.left - rect2.left);
+               
+                line.setAttribute("y2", Math.abs(rect.top - rect2.top));
+       
+
+                lineUuid.current = uuidv4;
+                firstLinePosition.current = { x: line.getAttribute("x2"), y: line.getAttribute("y2") };
+               // direction.current = "straight";
+                svg.append(line);
+              }
+
+            }else{
+              if (lineUuid.current != "") {
+                console.log(direction.current, "dsggds");
+  
+                line.setAttribute("x1", firstLinePosition.current.x);
+                line.setAttribute("y1", firstLinePosition.current.y);
+                line.setAttribute("x2", direction.current == "straight" ? ((rect.left - rect2.left) + 7) : 5);
+                line.setAttribute("y2", direction.current != "straight" ? (Math.abs(rect.top - rect2.top)) + 7 : firstLinePosition.current.y) + 5;
+        
+               
+  
+  
+                svg.append(line);
+              } else {
+                line.setAttribute("x1", 5);
+                line.setAttribute("y1", 5);
+                line.setAttribute("x2", direction.current == "straight" ? ((rect.left - rect2.left) / 2) + 5 : 5);
+                line.setAttribute("y2", direction.current != "straight" ? (Math.abs(rect.top - rect2.top)) + 5 : 5);
+             
+              
+                lineUuid.current = uuidv4;
+                firstLinePosition.current = { x: line.getAttribute("x2"), y: (direction.current == "bottom" ? line.getAttribute("y2") : 5) };
+                direction.current = "straight";
+                svg.append(line);
+              }
             }
+
+          
+        
           }
 
           // Ajouter la ligne au SVG
@@ -751,22 +806,22 @@ export default function MainLogigramme({ tool }) {
           onMouseDown={(e) =>
             (tool.tool !== 0 &&
               document.querySelector(".shapeMenu").style.display == "none") ||
-            document.querySelector(".shapeMenu").style.display == ""
+              document.querySelector(".shapeMenu").style.display == ""
               ? [
-                  mouseIsDown(e),
-                  document.getElementById("input" + uuid) != null
-                    ? [
-                        document
-                          .getElementById("input" + uuid)
-                          .setAttribute("disabled", true),
-                      ]
-                    : null,
-                ]
+                mouseIsDown(e),
+                document.getElementById("input" + uuid) != null
+                  ? [
+                    document
+                      .getElementById("input" + uuid)
+                      .setAttribute("disabled", true),
+                  ]
+                  : null,
+              ]
               : [
-                  document
-                    .getElementById("input" + uuid)
-                    .setAttribute("disabled", true),
-                ]
+                document
+                  .getElementById("input" + uuid)
+                  .setAttribute("disabled", true),
+              ]
           }
           onMouseUp={mouseIsUp}
           style={{
