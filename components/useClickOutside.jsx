@@ -11,7 +11,7 @@ const useClickOutside = (ref, handler) => {
       if (startedInside || !startedWhenMounted) return;
       // Do nothing if clicking ref's element or descendent elements
       if (!ref.current || ref.current.contains(event.target)) return;
-
+console.log(event)
       handler(event);
     };
 

@@ -303,360 +303,431 @@ export default function MainLogigramme({ tool, onUuidChange }) {
   // Fonction pour mettre à jour les connexions SVG
   // Version améliorée avec ajustement précis des points pour le losange
 
-const updateSvgConnections = useCallback(() => {
-  try {
-    if (!lines || lines.length === 0) {
-      setSvgConnections([]);
-      return;
-    }
+  const updateSvgConnections = useCallback(() => {
+    try {
+      if (!lines || lines.length === 0) {
+        setSvgConnections([]);
+        return;
+      }
 
-    // Faire une copie profonde des lignes pour éviter les mutations
-    const linesData = JSON.parse(JSON.stringify(lines));
-    const containerRect = document.querySelector(".openDiv")?.getBoundingClientRect();
-    if (!containerRect) return;
+      // Faire une copie profonde des lignes pour éviter les mutations
+      const linesData = JSON.parse(JSON.stringify(lines));
+      const containerRect = document
+        .querySelector(".openDiv")
+        ?.getBoundingClientRect();
+      if (!containerRect) return;
 
-    const newConnections = linesData
-      .map((line) => {
-        try {
-          // Récupérer les éléments source et cible
-          const sourceElement = document.getElementById(line.source);
-          const targetElement = document.getElementById(line.target);
+      const newConnections = linesData
+        .map((line) => {
+          try {
+            // Récupérer les éléments source et cible
+            const sourceElement = document.getElementById(line.source);
+            const targetElement = document.getElementById(line.target);
 
-          if (!sourceElement || !targetElement) return null;
+            if (!sourceElement || !targetElement) return null;
 
-          // Obtenir les rectangles englobants
-          const sourceRect = sourceElement.getBoundingClientRect();
-          const targetRect = targetElement.getBoundingClientRect();
-          
-          // Obtenir les types de formes
-          const sourceShapeType = parseInt(sourceElement.getAttribute("shape-type"));
-          const targetShapeType = parseInt(targetElement.getAttribute("shape-type"));
+            // Obtenir les rectangles englobants
+            const sourceRect = sourceElement.getBoundingClientRect();
+            const targetRect = targetElement.getBoundingClientRect();
 
-          // Variables pour les points de connexion
-          let sourceX, sourceY, targetX, targetY;
+            // Obtenir les types de formes
+            const sourceShapeType = parseInt(
+              sourceElement.getAttribute("shape-type")
+            );
+            const targetShapeType = parseInt(
+              targetElement.getAttribute("shape-type")
+            );
 
-          // ===== CALCUL DU POINT SOURCE =====
-          if (sourceShapeType === 3) { // Losange
-            // Essayer d'obtenir directement le point de connexion (dot)
-            const sourceDotId = `dot-${line.source}-${line.sourceSide}`;
-            const sourceDot = document.getElementById(sourceDotId);
-            
-            if (sourceDot) {
-              // Calculer la position relative du dot par rapport au container
-              const dotRect = sourceDot.getBoundingClientRect();
-              sourceX = dotRect.left + dotRect.width/2 - containerRect.left;
-              sourceY = dotRect.top + dotRect.height/2 - containerRect.top;
+            // Variables pour les points de connexion
+            let sourceX, sourceY, targetX, targetY;
+
+            // ===== CALCUL DU POINT SOURCE =====
+            if (sourceShapeType === 3) {
+              // Losange
+              // Essayer d'obtenir directement le point de connexion (dot)
+              const sourceDotId = `dot-${line.source}-${line.sourceSide}`;
+              const sourceDot = document.getElementById(sourceDotId);
+
+              if (sourceDot) {
+                // Calculer la position relative du dot par rapport au container
+                const dotRect = sourceDot.getBoundingClientRect();
+                sourceX = dotRect.left + dotRect.width / 2 - containerRect.left;
+                sourceY = dotRect.top + dotRect.height / 2 - containerRect.top;
+              } else {
+                // Ajustements précis pour chaque coin du losange
+                switch (line.sourceSide) {
+                  case "top-right":
+                    sourceX = sourceRect.right - containerRect.left - 6;
+                    sourceY = sourceRect.top - containerRect.top + 6;
+                    break;
+                  case "bottom-right":
+                    sourceX = sourceRect.right - containerRect.left - 6;
+                    sourceY = sourceRect.bottom - containerRect.top - 6;
+                    break;
+                  case "bottom-left":
+                    sourceX = sourceRect.left - containerRect.left + 6;
+                    sourceY = sourceRect.bottom - containerRect.top - 6;
+                    break;
+                  case "top-left":
+                    sourceX = sourceRect.left - containerRect.left + 6;
+                    sourceY = sourceRect.top - containerRect.top + 6;
+                    break;
+                  default:
+                    // Pour les autres côtés (si jamais utilisés)
+                    sourceX =
+                      sourceRect.left +
+                      sourceRect.width / 2 -
+                      containerRect.left;
+                    sourceY =
+                      sourceRect.top +
+                      sourceRect.height / 2 -
+                      containerRect.top;
+                }
+              }
             } else {
-              // Ajustements précis pour chaque coin du losange
+              // Calcul standard pour les autres formes
               switch (line.sourceSide) {
-                case "top-right":
-                  sourceX = sourceRect.right - containerRect.left - 6;
-                  sourceY = sourceRect.top - containerRect.top + 6;
+                case "top":
+                  sourceX =
+                    sourceRect.left + sourceRect.width / 2 - containerRect.left;
+                  sourceY = sourceRect.top - containerRect.top;
                   break;
-                case "bottom-right":
-                  sourceX = sourceRect.right - containerRect.left - 6;
-                  sourceY = sourceRect.bottom - containerRect.top - 6;
+                case "right":
+                  sourceX = sourceRect.right - containerRect.left;
+                  sourceY =
+                    sourceRect.top + sourceRect.height / 2 - containerRect.top;
                   break;
-                case "bottom-left":
-                  sourceX = sourceRect.left - containerRect.left + 6;
-                  sourceY = sourceRect.bottom - containerRect.top - 6;
+                case "bottom":
+                  sourceX =
+                    sourceRect.left + sourceRect.width / 2 - containerRect.left;
+                  sourceY = sourceRect.bottom - containerRect.top;
                   break;
-                case "top-left":
-                  sourceX = sourceRect.left - containerRect.left + 6;
-                  sourceY = sourceRect.top - containerRect.top + 6;
+                case "left":
+                  sourceX = sourceRect.left - containerRect.left;
+                  sourceY =
+                    sourceRect.top + sourceRect.height / 2 - containerRect.top;
                   break;
                 default:
-                  // Pour les autres côtés (si jamais utilisés)
-                  sourceX = sourceRect.left + sourceRect.width/2 - containerRect.left;
-                  sourceY = sourceRect.top + sourceRect.height/2 - containerRect.top;
+                  // Points aux coins
+                  if (line.sourceSide && line.sourceSide.includes("top")) {
+                    sourceY = sourceRect.top - containerRect.top;
+                  } else if (
+                    line.sourceSide &&
+                    line.sourceSide.includes("bottom")
+                  ) {
+                    sourceY = sourceRect.bottom - containerRect.top;
+                  } else {
+                    sourceY =
+                      sourceRect.top +
+                      sourceRect.height / 2 -
+                      containerRect.top;
+                  }
+
+                  if (line.sourceSide && line.sourceSide.includes("left")) {
+                    sourceX = sourceRect.left - containerRect.left;
+                  } else if (
+                    line.sourceSide &&
+                    line.sourceSide.includes("right")
+                  ) {
+                    sourceX = sourceRect.right - containerRect.left;
+                  } else {
+                    sourceX =
+                      sourceRect.left +
+                      sourceRect.width / 2 -
+                      containerRect.left;
+                  }
               }
             }
-          } else {
-            // Calcul standard pour les autres formes
+
+            // ===== CALCUL DU POINT CIBLE =====
+            if (targetShapeType === 3) {
+              // Losange
+              // Essayer d'obtenir directement le point de connexion (dot)
+              const targetDotId = `dot-${line.target}-${line.targetSide}`;
+              const targetDot = document.getElementById(targetDotId);
+
+              if (targetDot) {
+                // Calculer la position relative du dot par rapport au container
+                const dotRect = targetDot.getBoundingClientRect();
+                targetX = dotRect.left + dotRect.width / 2 - containerRect.left;
+                targetY = dotRect.top + dotRect.height / 2 - containerRect.top;
+              } else {
+                // Ajustements précis pour chaque coin du losange
+                switch (line.targetSide) {
+                  case "top-right":
+                    targetX = targetRect.right - containerRect.left - 6;
+                    targetY = targetRect.top - containerRect.top + 6;
+                    break;
+                  case "bottom-right":
+                    targetX = targetRect.right - containerRect.left - 6;
+                    targetY = targetRect.bottom - containerRect.top - 6;
+                    break;
+                  case "bottom-left":
+                    targetX = targetRect.left - containerRect.left + 6;
+                    targetY = targetRect.bottom - containerRect.top - 6;
+                    break;
+                  case "top-left":
+                    targetX = targetRect.left - containerRect.left + 6;
+                    targetY = targetRect.top - containerRect.top + 6;
+                    break;
+                  default:
+                    // Pour les autres côtés (si jamais utilisés)
+                    targetX =
+                      targetRect.left +
+                      targetRect.width / 2 -
+                      containerRect.left;
+                    targetY =
+                      targetRect.top +
+                      targetRect.height / 2 -
+                      containerRect.top;
+                }
+              }
+            } else {
+              // Calcul standard pour les autres formes
+              switch (line.targetSide) {
+                case "top":
+                  targetX =
+                    targetRect.left + targetRect.width / 2 - containerRect.left;
+                  targetY = targetRect.top - containerRect.top;
+                  break;
+                case "right":
+                  targetX = targetRect.right - containerRect.left;
+                  targetY =
+                    targetRect.top + targetRect.height / 2 - containerRect.top;
+                  break;
+                case "bottom":
+                  targetX =
+                    targetRect.left + targetRect.width / 2 - containerRect.left;
+                  targetY = targetRect.bottom - containerRect.top;
+                  break;
+                case "left":
+                  targetX = targetRect.left - containerRect.left;
+                  targetY =
+                    targetRect.top + targetRect.height / 2 - containerRect.top;
+                  break;
+                default:
+                  // Points aux coins
+                  if (line.targetSide && line.targetSide.includes("top")) {
+                    targetY = targetRect.top - containerRect.top;
+                  } else if (
+                    line.targetSide &&
+                    line.targetSide.includes("bottom")
+                  ) {
+                    targetY = targetRect.bottom - containerRect.top;
+                  } else {
+                    targetY =
+                      targetRect.top +
+                      targetRect.height / 2 -
+                      containerRect.top;
+                  }
+
+                  if (line.targetSide && line.targetSide.includes("left")) {
+                    targetX = targetRect.left - containerRect.left;
+                  } else if (
+                    line.targetSide &&
+                    line.targetSide.includes("right")
+                  ) {
+                    targetX = targetRect.right - containerRect.left;
+                  } else {
+                    targetX =
+                      targetRect.left +
+                      targetRect.width / 2 -
+                      containerRect.left;
+                  }
+              }
+            }
+
+            // Vérification que les points sont valides
+            if (
+              isNaN(sourceX) ||
+              isNaN(sourceY) ||
+              isNaN(targetX) ||
+              isNaN(targetY)
+            ) {
+              return null;
+            }
+
+            // Calculer les points de contrôle pour la courbe Bézier
+            const controlDistance =
+              Math.min(
+                Math.abs(targetX - sourceX),
+                Math.abs(targetY - sourceY)
+              ) /
+                2 +
+              50;
+
+            let sourceControlX, sourceControlY, targetControlX, targetControlY;
+
+            // Point de contrôle source
             switch (line.sourceSide) {
               case "top":
-                sourceX = sourceRect.left + sourceRect.width/2 - containerRect.left;
-                sourceY = sourceRect.top - containerRect.top;
+                sourceControlX = sourceX;
+                sourceControlY = sourceY - controlDistance;
                 break;
               case "right":
-                sourceX = sourceRect.right - containerRect.left;
-                sourceY = sourceRect.top + sourceRect.height/2 - containerRect.top;
+                sourceControlX = sourceX + controlDistance;
+                sourceControlY = sourceY;
                 break;
               case "bottom":
-                sourceX = sourceRect.left + sourceRect.width/2 - containerRect.left;
-                sourceY = sourceRect.bottom - containerRect.top;
+                sourceControlX = sourceX;
+                sourceControlY = sourceY + controlDistance;
                 break;
               case "left":
-                sourceX = sourceRect.left - containerRect.left;
-                sourceY = sourceRect.top + sourceRect.height/2 - containerRect.top;
+                sourceControlX = sourceX - controlDistance;
+                sourceControlY = sourceY;
                 break;
               default:
-                // Points aux coins
+                // Pour les coins, utiliser une direction diagonale
                 if (line.sourceSide && line.sourceSide.includes("top")) {
-                  sourceY = sourceRect.top - containerRect.top;
-                } else if (line.sourceSide && line.sourceSide.includes("bottom")) {
-                  sourceY = sourceRect.bottom - containerRect.top;
+                  sourceControlY = sourceY - controlDistance / 2;
                 } else {
-                  sourceY = sourceRect.top + sourceRect.height/2 - containerRect.top;
+                  sourceControlY = sourceY + controlDistance / 2;
                 }
-
-                if (line.sourceSide && line.sourceSide.includes("left")) {
-                  sourceX = sourceRect.left - containerRect.left;
-                } else if (line.sourceSide && line.sourceSide.includes("right")) {
-                  sourceX = sourceRect.right - containerRect.left;
+                if (line.sourceSide && line.sourceSide.includes("right")) {
+                  sourceControlX = sourceX + controlDistance / 2;
                 } else {
-                  sourceX = sourceRect.left + sourceRect.width/2 - containerRect.left;
+                  sourceControlX = sourceX - controlDistance / 2;
                 }
             }
-          }
 
-          // ===== CALCUL DU POINT CIBLE =====
-          if (targetShapeType === 3) { // Losange
-            // Essayer d'obtenir directement le point de connexion (dot)
-            const targetDotId = `dot-${line.target}-${line.targetSide}`;
-            const targetDot = document.getElementById(targetDotId);
-            
-            if (targetDot) {
-              // Calculer la position relative du dot par rapport au container
-              const dotRect = targetDot.getBoundingClientRect();
-              targetX = dotRect.left + dotRect.width/2 - containerRect.left;
-              targetY = dotRect.top + dotRect.height/2 - containerRect.top;
-            } else {
-              // Ajustements précis pour chaque coin du losange
-              switch (line.targetSide) {
-                case "top-right":
-                  targetX = targetRect.right - containerRect.left - 6;
-                  targetY = targetRect.top - containerRect.top + 6;
-                  break;
-                case "bottom-right":
-                  targetX = targetRect.right - containerRect.left - 6;
-                  targetY = targetRect.bottom - containerRect.top - 6;
-                  break;
-                case "bottom-left":
-                  targetX = targetRect.left - containerRect.left + 6;
-                  targetY = targetRect.bottom - containerRect.top - 6;
-                  break;
-                case "top-left":
-                  targetX = targetRect.left - containerRect.left + 6;
-                  targetY = targetRect.top - containerRect.top + 6;
-                  break;
-                default:
-                  // Pour les autres côtés (si jamais utilisés)
-                  targetX = targetRect.left + targetRect.width/2 - containerRect.left;
-                  targetY = targetRect.top + targetRect.height/2 - containerRect.top;
-              }
-            }
-          } else {
-            // Calcul standard pour les autres formes
+            // Point de contrôle cible
             switch (line.targetSide) {
               case "top":
-                targetX = targetRect.left + targetRect.width/2 - containerRect.left;
-                targetY = targetRect.top - containerRect.top;
+                targetControlX = targetX;
+                targetControlY = targetY - controlDistance;
                 break;
               case "right":
-                targetX = targetRect.right - containerRect.left;
-                targetY = targetRect.top + targetRect.height/2 - containerRect.top;
+                targetControlX = targetX + controlDistance;
+                targetControlY = targetY;
                 break;
               case "bottom":
-                targetX = targetRect.left + targetRect.width/2 - containerRect.left;
-                targetY = targetRect.bottom - containerRect.top;
+                targetControlX = targetX;
+                targetControlY = targetY + controlDistance;
                 break;
               case "left":
-                targetX = targetRect.left - containerRect.left;
-                targetY = targetRect.top + targetRect.height/2 - containerRect.top;
+                targetControlX = targetX - controlDistance;
+                targetControlY = targetY;
                 break;
               default:
-                // Points aux coins
+                // Pour les coins, utiliser une direction diagonale
                 if (line.targetSide && line.targetSide.includes("top")) {
-                  targetY = targetRect.top - containerRect.top;
-                } else if (line.targetSide && line.targetSide.includes("bottom")) {
-                  targetY = targetRect.bottom - containerRect.top;
+                  targetControlY = targetY - controlDistance / 2;
                 } else {
-                  targetY = targetRect.top + targetRect.height/2 - containerRect.top;
+                  targetControlY = targetY + controlDistance / 2;
                 }
-
-                if (line.targetSide && line.targetSide.includes("left")) {
-                  targetX = targetRect.left - containerRect.left;
-                } else if (line.targetSide && line.targetSide.includes("right")) {
-                  targetX = targetRect.right - containerRect.left;
+                if (line.targetSide && line.targetSide.includes("right")) {
+                  targetControlX = targetX + controlDistance / 2;
                 } else {
-                  targetX = targetRect.left + targetRect.width/2 - containerRect.left;
+                  targetControlX = targetX - controlDistance / 2;
                 }
             }
-          }
 
-          // Vérification que les points sont valides
-          if (isNaN(sourceX) || isNaN(sourceY) || isNaN(targetX) || isNaN(targetY)) {
+            // Créer le chemin SVG avec courbe de Bézier
+            const path = `M ${sourceX},${sourceY} C ${sourceControlX},${sourceControlY} ${targetControlX},${targetControlY} ${targetX},${targetY}`;
+
+            return {
+              id: line.id,
+              path,
+              color: line.color || "#2c3e50",
+              thickness: line.thickness || 2,
+              toolType: line.toolType,
+            };
+          } catch (error) {
+            console.error(
+              "Error calculating connection for line:",
+              line,
+              error
+            );
             return null;
           }
+        })
+        .filter((conn) => conn !== null);
 
-          // Calculer les points de contrôle pour la courbe Bézier
-          const controlDistance = Math.min(
-            Math.abs(targetX - sourceX),
-            Math.abs(targetY - sourceY)
-          ) / 2 + 50;
-
-          let sourceControlX, sourceControlY, targetControlX, targetControlY;
-
-          // Point de contrôle source
-          switch (line.sourceSide) {
-            case "top":
-              sourceControlX = sourceX;
-              sourceControlY = sourceY - controlDistance;
-              break;
-            case "right":
-              sourceControlX = sourceX + controlDistance;
-              sourceControlY = sourceY;
-              break;
-            case "bottom":
-              sourceControlX = sourceX;
-              sourceControlY = sourceY + controlDistance;
-              break;
-            case "left":
-              sourceControlX = sourceX - controlDistance;
-              sourceControlY = sourceY;
-              break;
-            default:
-              // Pour les coins, utiliser une direction diagonale
-              if (line.sourceSide && line.sourceSide.includes("top")) {
-                sourceControlY = sourceY - controlDistance/2;
-              } else {
-                sourceControlY = sourceY + controlDistance/2;
-              }
-              if (line.sourceSide && line.sourceSide.includes("right")) {
-                sourceControlX = sourceX + controlDistance/2;
-              } else {
-                sourceControlX = sourceX - controlDistance/2;
-              }
-          }
-
-          // Point de contrôle cible
-          switch (line.targetSide) {
-            case "top":
-              targetControlX = targetX;
-              targetControlY = targetY - controlDistance;
-              break;
-            case "right":
-              targetControlX = targetX + controlDistance;
-              targetControlY = targetY;
-              break;
-            case "bottom":
-              targetControlX = targetX;
-              targetControlY = targetY + controlDistance;
-              break;
-            case "left":
-              targetControlX = targetX - controlDistance;
-              targetControlY = targetY;
-              break;
-            default:
-              // Pour les coins, utiliser une direction diagonale
-              if (line.targetSide && line.targetSide.includes("top")) {
-                targetControlY = targetY - controlDistance/2;
-              } else {
-                targetControlY = targetY + controlDistance/2;
-              }
-              if (line.targetSide && line.targetSide.includes("right")) {
-                targetControlX = targetX + controlDistance/2;
-              } else {
-                targetControlX = targetX - controlDistance/2;
-              }
-          }
-
-          // Créer le chemin SVG avec courbe de Bézier
-          const path = `M ${sourceX},${sourceY} C ${sourceControlX},${sourceControlY} ${targetControlX},${targetControlY} ${targetX},${targetY}`;
-
-          return {
-            id: line.id,
-            path,
-            color: line.color || "#2c3e50",
-            thickness: line.thickness || 2,
-            toolType: line.toolType,
-          };
-        } catch (error) {
-          console.error("Error calculating connection for line:", line, error);
-          return null;
-        }
-      })
-      .filter((conn) => conn !== null);
-
-    // Mettre à jour les connexions SVG
-    if (newConnections.length > 0) {
-      setSvgConnections(newConnections);
+      // Mettre à jour les connexions SVG
+      if (newConnections.length > 0) {
+        setSvgConnections(newConnections);
+      }
+    } catch (error) {
+      console.error("Error in updateSvgConnections:", error);
     }
-  } catch (error) {
-    console.error("Error in updateSvgConnections:", error);
-  }
-}, [lines]);
+  }, [lines]);
 
-// Amélioration pour optimiser les mises à jour SVG pendant le déplacement
-const setElementPosition = (e) => {
-  if (!isDown || !uuid) return;
-  
-  const el = elements.find((el) => el.id === uuid);
-  if (!el) return;
+  // Amélioration pour optimiser les mises à jour SVG pendant le déplacement
+  const setElementPosition = (e) => {
+    if (
+      document.querySelector(".shapeMenu").style.display == "flex" &&
+      isDown
+    ) {
+      document.querySelector(".shapeMenu").style.display = "none";
+    }
 
-  const rect1 = document.getElementById(uuid).getBoundingClientRect();
-  const rect3 = document.querySelector(".openDiv").getBoundingClientRect();
+    if (!isDown || !uuid) return;
 
-  // Vérifier les limites
-  let canMove = true;
-  
-  if (rect1.right > rect3.right - 10) {
-    setBlockRight(true);
-    canMove = false;
-  } else if (rect1.left < rect3.left + 8) {
-    setBlockLeft(true);
-    el.x = 8;
-    canMove = false;
-  } else if (rect1.top < rect3.top) {
-    setBlockTop(true);
-    el.y = 0;
-    canMove = false;
-  } else if (rect1.bottom > rect3.bottom) {
-    setBlockBottom(false);
-    canMove = false;
-  }
+    const el = elements.find((el) => el.id === uuid);
+    if (!el) return;
 
-  // Si on est pas bloqué, on peut bouger librement
-  if (canMove && !blockLeft && !blockRight && !blockTop && !blockBottom) {
-    setElements((prevElements) => {
-      return prevElements.map((element) => {
-        if (element.id === uuid) {
-          return {
-            ...element,
-            x: parseInt(element.x) + e.movementX,
-            y: parseInt(element.y) + e.movementY,
-          };
-        } else {
-          return element;
-        }
+    const rect1 = document.getElementById(uuid).getBoundingClientRect();
+    const rect3 = document.querySelector(".openDiv").getBoundingClientRect();
+
+    // Vérifier les limites
+    let canMove = true;
+
+    if (rect1.right > rect3.right - 10) {
+      setBlockRight(true);
+      canMove = false;
+    } else if (rect1.left < rect3.left + 8) {
+      setBlockLeft(true);
+      el.x = 8;
+      canMove = false;
+    } else if (rect1.top < rect3.top) {
+      setBlockTop(true);
+      el.y = 0;
+      canMove = false;
+    } else if (rect1.bottom > rect3.bottom) {
+      setBlockBottom(false);
+      canMove = false;
+    }
+
+    // Si on est pas bloqué, on peut bouger librement
+    if (canMove && !blockLeft && !blockRight && !blockTop && !blockBottom) {
+      setElements((prevElements) => {
+        return prevElements.map((element) => {
+          if (element.id === uuid) {
+            return {
+              ...element,
+              x: parseInt(element.x) + e.movementX,
+              y: parseInt(element.y) + e.movementY,
+            };
+          } else {
+            return element;
+          }
+        });
       });
-    });
-  }
-
-  // Détecter quand on peut débloquer
-  if (blockLeft && e.movementX > 0) {
-    setBlockLeft(false);
-  } else if (blockRight && e.movementX < 0) {
-    setBlockRight(false);
-  } else if (blockTop && e.movementY > 0) {
-    setBlockTop(false);
-  } else if (blockBottom && e.movementY < 0) {
-    setBlockBottom(false);
-  }
-
-  // Mettre à jour les connexions SVG après déplacement avec requestAnimationFrame
-  if (lines.length > 0) {
-    // Utiliser une approche de throttling pour les mises à jour
-    if (window.svgUpdateRequest) {
-      cancelAnimationFrame(window.svgUpdateRequest);
     }
-    window.svgUpdateRequest = requestAnimationFrame(() => {
-      updateSvgConnections();
-      window.svgUpdateRequest = null;
-    });
-  }
-};
+
+    // Détecter quand on peut débloquer
+    if (blockLeft && e.movementX > 0) {
+      setBlockLeft(false);
+    } else if (blockRight && e.movementX < 0) {
+      setBlockRight(false);
+    } else if (blockTop && e.movementY > 0) {
+      setBlockTop(false);
+    } else if (blockBottom && e.movementY < 0) {
+      setBlockBottom(false);
+    }
+
+    // Mettre à jour les connexions SVG après déplacement avec requestAnimationFrame
+    if (lines.length > 0) {
+      // Utiliser une approche de throttling pour les mises à jour
+      if (window.svgUpdateRequest) {
+        cancelAnimationFrame(window.svgUpdateRequest);
+      }
+      window.svgUpdateRequest = requestAnimationFrame(() => {
+        updateSvgConnections();
+        window.svgUpdateRequest = null;
+      });
+    }
+  };
 
   // Remplacez votre useEffect pour les lignes avec ceci:
   useEffect(() => {
@@ -731,117 +802,121 @@ const setElementPosition = (e) => {
   };
 
   // Fonction optimisée pour créer un modèle de points sur la grille
-const createDotPattern = () => {
-  // Vérifier si le conteneur existe déjà
-  if (document.getElementById("momo")) return;
-  
-  const container = document.querySelector(".openDiv");
-  if (!container) return;
-  
-  // Constantes
-  const dotBgColor = "#00000050";
-  const spacing = 25;
-  const windowWidth = 2500;
-  const windowHeight = 3000;
-  
-  // Créer le conteneur avec toutes les propriétés définies en une fois
-  const dotContainer = document.createElement("div");
-  Object.assign(dotContainer.style, {
-    position: "absolute",
-    top: "8px",
-    left: "8px",
-    width: "100%",
-    height: "100%",
-    pointerEvents: "none"
-  });
-  dotContainer.id = "momo";
-  
-  // Utiliser un DocumentFragment pour améliorer les performances
-  const fragment = document.createDocumentFragment();
-  
-  // Calculer le nombre de points à créer
-  const dotsX = Math.floor(windowWidth / spacing);
-  const dotsY = Math.floor(windowHeight / spacing);
-  
-  // Créer un template pour les dots pour éviter de recréer le même HTML
-  const dotTemplate = document.createElement('div');
-  Object.assign(dotTemplate.style, {
-    position: "absolute",
-    width: "3px",
-    height: "3px",
-    backgroundColor: dotBgColor,
-    borderRadius: "50%",
-    pointerEvents: "auto"
-  });
-  dotTemplate.classList.add("zone");
-  
-  // Fonction de création unique pour éviter la surcharge des closures
-  const handleDotHover = (e) => {
-    const target = e.target;
-    const x = target.getAttribute("x");
-    const y = target.getAttribute("y");
-    
-    if (x && y) {
-      setDotPosition([x, y]);
-    }
+  const createDotPattern = () => {
+    // Vérifier si le conteneur existe déjà
+    if (document.getElementById("momo")) return;
+
+    const container = document.querySelector(".openDiv");
+    if (!container) return;
+
+    // Constantes
+    const dotBgColor = "#00000050";
+    const spacing = 25;
+    const windowWidth = 2500;
+    const windowHeight = 3000;
+
+    // Créer le conteneur avec toutes les propriétés définies en une fois
+    const dotContainer = document.createElement("div");
+    Object.assign(dotContainer.style, {
+      position: "absolute",
+      top: "8px",
+      left: "8px",
+      width: "100%",
+      height: "100%",
+      pointerEvents: "none",
+    });
+    dotContainer.id = "momo";
+
+    // Utiliser un DocumentFragment pour améliorer les performances
+    const fragment = document.createDocumentFragment();
+
+    // Calculer le nombre de points à créer
+    const dotsX = Math.floor(windowWidth / spacing);
+    const dotsY = Math.floor(windowHeight / spacing);
+
+    // Créer un template pour les dots pour éviter de recréer le même HTML
+    const dotTemplate = document.createElement("div");
+    Object.assign(dotTemplate.style, {
+      position: "absolute",
+      width: "3px",
+      height: "3px",
+      backgroundColor: dotBgColor,
+      borderRadius: "50%",
+      pointerEvents: "auto",
+    });
+    dotTemplate.classList.add("zone");
+
+    // Fonction de création unique pour éviter la surcharge des closures
+    const handleDotHover = (e) => {
+      const target = e.target;
+      const x = target.getAttribute("x");
+      const y = target.getAttribute("y");
+
+      if (x && y) {
+        setDotPosition([x, y]);
+      }
+    };
+
+    // Optimisation: création par lots et utilisation de clonage
+    // Créer les points par lots de 500 pour éviter de bloquer le thread principal
+    const batchSize = 500;
+    let dotsCreated = 0;
+    let currentBatch = 0;
+    const totalDots = dotsX * dotsY;
+
+    const processBatch = () => {
+      const batchStart = currentBatch * batchSize;
+      const batchEnd = Math.min(batchStart + batchSize, totalDots);
+
+      for (let i = batchStart; i < batchEnd; i++) {
+        const x = i % dotsX;
+        const y = Math.floor(i / dotsX);
+
+        // Cloner le template est beaucoup plus performant que créer un nouvel élément
+        const dot = dotTemplate.cloneNode(false);
+
+        // Positionner le point
+        const xPos = x * spacing;
+        const yPos = y * spacing;
+
+        dot.style.left = `${xPos}px`;
+        dot.style.top = `${yPos}px`;
+        dot.setAttribute("x", `${xPos + 8}`);
+        dot.setAttribute("y", `${yPos + 8}`);
+
+        // Utiliser la délégation d'événements au lieu d'attacher un événement à chaque point
+        // Ceci est fait au niveau du conteneur pour économiser la mémoire
+
+        fragment.appendChild(dot);
+      }
+
+      dotsCreated += batchEnd - batchStart;
+      currentBatch++;
+
+      if (dotsCreated < totalDots) {
+        // Traiter le prochain lot sur le prochain frame d'animation
+        requestAnimationFrame(processBatch);
+      } else {
+        // Tous les points sont créés, ajouter le fragment au DOM
+        dotContainer.appendChild(fragment);
+        container.appendChild(dotContainer);
+
+        // Ajouter un seul écouteur d'événement sur le conteneur (délégation d'événements)
+        dotContainer.addEventListener(
+          "mouseover",
+          (e) => {
+            if (e.target.classList.contains("zone")) {
+              handleDotHover(e);
+            }
+          },
+          { passive: true }
+        );
+      }
+    };
+
+    // Démarrer le traitement par lots
+    requestAnimationFrame(processBatch);
   };
-  
-  // Optimisation: création par lots et utilisation de clonage
-  // Créer les points par lots de 500 pour éviter de bloquer le thread principal
-  const batchSize = 500;
-  let dotsCreated = 0;
-  let currentBatch = 0;
-  const totalDots = dotsX * dotsY;
-  
-  const processBatch = () => {
-    const batchStart = currentBatch * batchSize;
-    const batchEnd = Math.min(batchStart + batchSize, totalDots);
-    
-    for (let i = batchStart; i < batchEnd; i++) {
-      const x = i % dotsX;
-      const y = Math.floor(i / dotsX);
-      
-      // Cloner le template est beaucoup plus performant que créer un nouvel élément
-      const dot = dotTemplate.cloneNode(false);
-      
-      // Positionner le point
-      const xPos = x * spacing;
-      const yPos = y * spacing;
-      
-      dot.style.left = `${xPos}px`;
-      dot.style.top = `${yPos}px`;
-      dot.setAttribute("x", `${xPos + 8}`);
-      dot.setAttribute("y", `${yPos + 8}`);
-      
-      // Utiliser la délégation d'événements au lieu d'attacher un événement à chaque point
-      // Ceci est fait au niveau du conteneur pour économiser la mémoire
-      
-      fragment.appendChild(dot);
-    }
-    
-    dotsCreated += (batchEnd - batchStart);
-    currentBatch++;
-    
-    if (dotsCreated < totalDots) {
-      // Traiter le prochain lot sur le prochain frame d'animation
-      requestAnimationFrame(processBatch);
-    } else {
-      // Tous les points sont créés, ajouter le fragment au DOM
-      dotContainer.appendChild(fragment);
-      container.appendChild(dotContainer);
-      
-      // Ajouter un seul écouteur d'événement sur le conteneur (délégation d'événements)
-      dotContainer.addEventListener("mouseover", (e) => {
-        if (e.target.classList.contains("zone")) {
-          handleDotHover(e);
-        }
-      }, { passive: true });
-    }
-  };
-  
-  // Démarrer le traitement par lots
-  requestAnimationFrame(processBatch);
-};
   useEffect(() => {
     createDotPattern();
   }, []);
@@ -850,8 +925,6 @@ const createDotPattern = () => {
     setMouseIsDown(true);
     setUuid(id);
   };
-
-  
 
   const mouseIsDown = (e) => {
     if (tool.tool !== 0 && tool.tool < 6) {
@@ -968,6 +1041,7 @@ const createDotPattern = () => {
   };
 
   const mouseIsUp = () => {
+    menu(uuid);
     setMouseIsDown(false);
 
     // Si l'outil d'alignement est actif, aligner à la grille
@@ -1338,14 +1412,19 @@ const createDotPattern = () => {
             }}
           >
             <img src="/icons/policeIcon.png" onClick={() => manageInput()} />
-
-            <PopoverPicker
-              color={color}
-              onChange={(newColor) => {
-                setColor(newColor);
-                changeShapeColor(newColor);
+            <div
+              onClick={() => {
+                tool.tool = -1;
               }}
-            />
+            >
+              <PopoverPicker
+                color={color}
+                onChange={(newColor) => {
+                  setColor(newColor);
+                  changeShapeColor(newColor);
+                }}
+              />
+            </div>
             <img onClick={() => deleteElement()} src="/icons/trash.png" />
           </div>
 
