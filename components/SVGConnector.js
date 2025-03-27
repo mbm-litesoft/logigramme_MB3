@@ -1,9 +1,9 @@
-import React from 'react';
+import React from "react";
 
 const SVGConnector = ({ svgConnections }) => {
   return (
-    <svg 
-      className="connections-container" 
+    <svg
+      className="connections-container"
       style={{
         position: "absolute",
         top: 0,
@@ -11,12 +11,12 @@ const SVGConnector = ({ svgConnections }) => {
         width: "100%",
         height: "100%",
         pointerEvents: "none",
-        zIndex: 9000
+        zIndex: 500, // Ajustez le z-index pour qu'il soit plus élevé que les éléments
       }}
     >
       <defs>
-        {svgConnections.map(conn => (
-          <marker 
+        {svgConnections.map((conn) => (
+          <marker
             key={`marker-${conn.id}`}
             id={`arrowhead-${conn.id}`}
             markerWidth="10"
@@ -29,8 +29,8 @@ const SVGConnector = ({ svgConnections }) => {
           </marker>
         ))}
       </defs>
-      
-      {svgConnections.map(conn => (
+
+      {svgConnections.map((conn) => (
         <path
           key={`path-${conn.id}`}
           d={conn.path}
@@ -38,11 +38,9 @@ const SVGConnector = ({ svgConnections }) => {
           strokeWidth={conn.thickness}
           fill="none"
           markerEnd={`url(#arrowhead-${conn.id})`}
+          style={{ pointerEvents: "none" }} // Assurez-vous que les lignes n'interfèrent pas avec les clics
         />
       ))}
-      
-      {/* Cercle de test pour vérifier que le SVG fonctionne */}
-      <circle cx="50" cy="50" r="25" fill="red" />
     </svg>
   );
 };
