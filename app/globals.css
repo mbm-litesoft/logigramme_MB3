@@ -134,6 +134,20 @@ a {
 
 .picker {
   position: relative;
+
+}
+#vbn::after{
+  content: "";
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.1);
+  pointer-events: none;
 }
 
 .swatch {
@@ -187,4 +201,11 @@ width:100%;
 height:100%;
 z-index: 2;
 position: absolute;
+}
+
+.backgroundClick{
+position: absolute;
+width: 100%;
+height: 100%;
+background-color: red;
 }
