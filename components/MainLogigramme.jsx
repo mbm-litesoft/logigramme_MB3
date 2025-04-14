@@ -1,16 +1,16 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { v4 as uuidv4 } from "uuid";
+import { stringify, v4 as uuidv4 } from "uuid";
+import { PopoverPicker } from "./PopoverPicker";
 
 export default function MainLogigramme({ tool, onUuidChange }) {
-  // États principaux
   const [isDown, setMouseIsDown] = useState(false);
   const [style, setStyle] = useState({
     id: "",
     type: 0,
     width: 103,
     height: 103,
-    bgColor: "#ffffff",
+    bgColor: "white",
     x: 0,
     y: 0,
     radius: "15%",
@@ -20,151 +20,263 @@ export default function MainLogigramme({ tool, onUuidChange }) {
   const [elements, setElements] = useState([]);
   const [lines, setLines] = useState([]);
   const [uuid, setUuid] = useState("");
-  const [svgConnections, setSvgConnections] = useState([]);
-  const [dotPosition, setDotPosition] = useState([0, 0]);
-  const [color, setColor] = useState("#ffffff");
-  const [colorPickerOpen, setColorPickerOpen] = useState(false);
-  const [connectingMode, setConnectingMode] = useState(false);
+  const [svgConnections, setSvgConnections] = useState([]); // État pour les connexions SVG
 
-  // États pour le blocage des mouvements
   const [blockLeft, setBlockLeft] = useState(false);
   const [blockRight, setBlockRight] = useState(false);
   const [blockBottom, setBlockBottom] = useState(false);
   const [blockTop, setBlockTop] = useState(false);
 
-  // Références
+  const [dotPosition, setDotPosition] = useState([0, 0]);
+  const [color, setColor] = useState("#eeee");
+  const [connectingMode, setConnectingMode] = useState(false);
+  const [sourceElement, setSourceElement] = useState(null);
+  const [sourceDot, setSourceDot] = useState(null);
+
   const dotSelected = useRef(false);
   const defaultDimensions = useRef({ width: 103, height: 103 });
+
+  // Par ces refs :
   const sourceElementRef = useRef(null);
   const sourceSideRef = useRef(null);
   const sourceDotRef = useRef(null);
 
-  // Propager l'UUID sélectionné au parent
+  const [canvasSize, setCanvasSize] = useState({
+    width: 5000, // Increased canvas size
+    height: 5000, // Increased canvas size
+  });
+
+  const [zoom, setZoom] = useState(1);
+  const containerRef = useRef(null);
   useEffect(() => {
     if (uuid) {
       onUuidChange(uuid);
     }
   }, [uuid, onUuidChange]);
 
-  // Dessiner les connexions au chargement initial
+  // Ajoutez cet useEffect au début de votre composant
   useEffect(() => {
+    // Redessiner toutes les connexions existantes au chargement
     if (lines.length > 0) {
-      setTimeout(() => updateSvgConnections(), 200);
+      console.log("Initial rendering of connections");
+      setTimeout(() => {
+        updateSvgConnections();
+      }, 200);
     }
   }, []);
 
-  // Gérer l'affichage des points de connexion selon l'outil
+  // Effet qui se déclenche quand la prop tool change
   useEffect(() => {
+    console.log("L'outil a changé:", tool);
+
+    // Gestion de l'affichage des points de connexion
     if (tool.tool === 6 || tool.tool === 7 || tool.tool === 8) {
-      // Mode connexion activé
+      // Afficher les points de connexion pour tous les outils de connexion
       setTimeout(() => {
         const shapes = document.querySelectorAll("[shape-type]");
-        shapes.forEach((element) => showConnectionPoints(element));
+        shapes.forEach((element) => {
+          showConnectionPoints(element);
+        });
         setConnectingMode(true);
-        updateSvgConnections();
+        updateSvgConnections(); // Mettre à jour les connexions SVG
       }, 100);
     } else {
-      // Mode connexion désactivé mais on veut garder les liaisons visibles
+      // Cacher les points de connexion
       const dots = document.querySelectorAll(".connection-dot");
       dots.forEach((dot) => {
         dot.style.display = "none";
       });
       setConnectingMode(false);
-      
-      // Crucial: mettre à jour les connexions après changement d'outil
-      setTimeout(() => {
-        updateSvgConnections();
-      }, 100);
     }
   }, [tool]);
 
-  // Mettre à jour les connexions SVG quand les éléments ou lignes changent
+  const saveToJson = () => {
+    const data = elements;
+
+    console.log(elements);
+    
+
+   // console.log(JSON.stringify(data["mm"]) )
+   const content = [JSON.stringify(data),lines]
+      
+   // Créer un Blob avec le contenu
+      const blob = new Blob([content], { type: 'text/plain' });
+      
+      // Créer un lien de téléchargement
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = "momo";
+      
+      // Déclencher le téléchargement
+      document.body.appendChild(link);
+      link.click();
+      
+      // Nettoyer
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+    
+    
+    // Utilisation
+    saveTextFile('Contenu du fichier', 'mon-fichier.json');
+  };
+
+
+
+  // Effet pour mettre à jour les SVG lorsque les éléments ou les lignes changent
   useEffect(() => {
     if (lines.length > 0) {
       updateSvgConnections();
     }
   }, [elements, lines]);
 
-  // Gestionnaire global de relâchement de la souris
+  // Ajoutez un useEffect pour gérer les événements mouseup au niveau du document
   useEffect(() => {
     const handleGlobalMouseUp = () => {
       if (isDown) {
         setMouseIsDown(false);
+        // Exécutez toute autre logique nécessaire ici
       }
     };
 
+    // Ajouter l'écouteur d'événements au document
     document.addEventListener("mouseup", handleGlobalMouseUp);
+
+    // Nettoyer l'écouteur d'événements lors du démontage du composant
     return () => {
       document.removeEventListener("mouseup", handleGlobalMouseUp);
     };
-  }, [isDown]);
+  }, [isDown]); // Dépendance sur isDown pour éviter des problèmes de stale closure
 
-  // Convertir RGB en hexadécimal
-  const rgbToHex = (rgbString) => {
-    if (!rgbString || !rgbString.startsWith('rgb')) return "#ffffff";
-    
-    const matches = rgbString.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
-    if (!matches) return "#ffffff";
-
-    const r = parseInt(matches[1], 10);
-    const g = parseInt(matches[2], 10);
-    const b = parseInt(matches[3], 10);
-
-    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-  };
-
-  // Fonction pour afficher/masquer le menu selon le colorPicker
-  const manageColorMenuActive = () => {
-    if (!colorPickerOpen) {
-      document.querySelector(".shapeMenu").style.display = "none";
-    }
-  };
-
-  // Afficher les points de connexion pour une forme
+  // Fonction pour créer et afficher les points de connexion en fonction du type de forme
   const showConnectionPoints = (element) => {
     if (!element) return;
-  
+
+    console.log("Showing connection points for:", element.id);
+
     try {
-      // Supprimer les points existants
+      // Supprimer les points existants pour éviter les doublons
       const existingDots = element.querySelectorAll(".connection-dot");
       existingDots.forEach((dot) => dot.remove());
-  
-      const shapeType = parseInt(element.getAttribute("shape-type") || "1");
+
+      const shapeType = parseInt(element.getAttribute("shape-type"));
       const elementId = element.id;
-  
-      // Déterminer les positions selon le type de forme
+
+      // Déterminer le nombre et la position des points en fonction du type de forme
       let positions = [];
-  
+
       if (shapeType === 2) {
         // Cercle - 4 points (haut, droite, bas, gauche)
         positions = [
-          { side: "top", top: "-10px", left: "50%", transform: "translateX(-50%)" },
-          { side: "right", top: "50%", right: "-10px", transform: "translateY(-50%)" },
-          { side: "bottom", bottom: "-10px", left: "50%", transform: "translateX(-50%)" },
-          { side: "left", top: "50%", left: "-10px", transform: "translateY(-50%)" }
+          {
+            side: "top",
+            top: "-10px",
+            left: "50%",
+            transform: "translateX(-50%)",
+          },
+          {
+            side: "right",
+            top: "50%",
+            right: "-10px",
+            transform: "translateY(-50%)",
+          },
+          {
+            side: "bottom",
+            bottom: "-10px",
+            left: "50%",
+            transform: "translateX(-50%)",
+          },
+          {
+            side: "left",
+            top: "50%",
+            left: "-10px",
+            transform: "translateY(-50%)",
+          },
         ];
       } else if (shapeType === 3) {
-        // Losange - 4 points aux sommets
+        // Losange - 4 points (aux sommets du losange)
         positions = [
-          { side: "top-right", top: "-10px", right: "0", transform: "translate(50%, 0)" },
-          { side: "bottom-right", bottom: "-10px", right: "0", transform: "translate(50%, 0)" },
-          { side: "bottom-left", bottom: "-10px", left: "0", transform: "translate(-50%, 0)" },
-          { side: "top-left", top: "-10px", left: "0", transform: "translate(-50%, 0)" }
+          {
+            side: "top-right",
+            top: "-10px",
+            right: "0",
+            transform: "translate(50%, 0)",
+          },
+
+          {
+            side: "bottom-right",
+            bottom: "-10px",
+            right: "0",
+            transform: "translate(50%, 0)",
+          },
+
+          {
+            side: "bottom-left",
+            bottom: "-10px",
+            left: "0",
+            transform: "translate(-50%, 0)",
+          },
+
+          {
+            side: "top-left",
+            top: "-10px",
+            left: "0",
+            transform: "translate(-50%, 0)",
+          },
         ];
       } else {
         // Rectangle ou parallélogramme - 8 points
         positions = [
-          { side: "top", top: "-10px", left: "50%", transform: "translateX(-50%)" },
-          { side: "top-right", top: "-10px", right: "0", transform: "translate(50%, 0)" },
-          { side: "right", top: "50%", right: "-10px", transform: "translateY(-50%)" },
-          { side: "bottom-right", bottom: "-10px", right: "0", transform: "translate(50%, 0)" },
-          { side: "bottom", bottom: "-10px", left: "50%", transform: "translateX(-50%)" },
-          { side: "bottom-left", bottom: "-10px", left: "0", transform: "translate(-50%, 0)" },
-          { side: "left", top: "50%", left: "-10px", transform: "translateY(-50%)" },
-          { side: "top-left", top: "-10px", left: "0", transform: "translate(-50%, 0)" }
+          {
+            side: "top",
+            top: "-10px",
+            left: "50%",
+            transform: "translateX(-50%)",
+          },
+          {
+            side: "top-right",
+            top: "-10px",
+            right: "0",
+            transform: "translate(50%, 0)",
+          },
+          {
+            side: "right",
+            top: "50%",
+            right: "-10px",
+            transform: "translateY(-50%)",
+          },
+          {
+            side: "bottom-right",
+            bottom: "-10px",
+            right: "0",
+            transform: "translate(50%, 0)",
+          },
+          {
+            side: "bottom",
+            bottom: "-10px",
+            left: "50%",
+            transform: "translateX(-50%)",
+          },
+          {
+            side: "bottom-left",
+            bottom: "-10px",
+            left: "0",
+            transform: "translate(-50%, 0)",
+          },
+          {
+            side: "left",
+            top: "50%",
+            left: "-10px",
+            transform: "translateY(-50%)",
+          },
+          {
+            side: "top-left",
+            top: "-10px",
+            left: "0",
+            transform: "translate(-50%, 0)",
+          },
         ];
       }
-  
+
       // Créer et ajouter les points de connexion
       positions.forEach((pos) => {
         const dot = document.createElement("div");
@@ -172,7 +284,7 @@ export default function MainLogigramme({ tool, onUuidChange }) {
         dot.setAttribute("data-element-id", elementId);
         dot.setAttribute("data-side", pos.side);
         dot.setAttribute("id", `dot-${elementId}-${pos.side}`);
-  
+
         // Style du point
         Object.assign(dot.style, {
           position: "absolute",
@@ -184,269 +296,444 @@ export default function MainLogigramme({ tool, onUuidChange }) {
           zIndex: "1000",
           display: "block",
         });
-  
+
         // Positionner le point
         Object.keys(pos).forEach((key) => {
           if (key !== "side") {
             dot.style[key] = pos[key];
           }
         });
-  
-        // Gestionnaires d'événements
+
+        // Ajouter les gestionnaires d'événements pour la connexion
         dot.addEventListener("click", (e) => {
           e.stopPropagation();
+          console.log("Dot clicked:", elementId, pos.side);
           handleDotClick(elementId, dot, pos.side);
         });
-  
+
         dot.addEventListener("mouseover", () => {
           dot.style.backgroundColor = "#2980b9";
           dot.style.transform = `${pos.transform} scale(1.2)`;
         });
-  
+
         dot.addEventListener("mouseout", () => {
-          if (!(sourceElementRef.current === elementId && 
-              sourceDotRef.current && 
-              sourceSideRef.current === pos.side)) {
+          // Ne pas changer la couleur si c'est le point source sélectionné
+          if (
+            !(
+              sourceElement === elementId &&
+              sourceDot &&
+              sourceDot.side === pos.side
+            )
+          ) {
             dot.style.backgroundColor = "#3498db";
           }
           dot.style.transform = pos.transform;
         });
-  
+
         element.appendChild(dot);
       });
-      
-      // Stocker les informations de connexion sur l'élément pour référence future
-      element.setAttribute("data-connection-points", JSON.stringify(positions));
+
+      console.log("Connection points added:", positions.length);
     } catch (error) {
       console.error("Error showing connection points:", error);
     }
   };
-  
 
-  const calculateConnectionPoint = (shapeType, rect, containerRect, elementId, side, pointType) => {
-    // Pour le losange (type 3)
-    if (shapeType === 3) {
-      // Trouver le dot correspondant au côté pour le losange
-      const dotId = `dot-${elementId}-${side}`;
-      const dot = document.getElementById(dotId);
-      
-      if (dot) {
-        const dotRect = dot.getBoundingClientRect();
-        return {
-          x: dotRect.left + dotRect.width / 2 - containerRect.left,
-          y: dotRect.top + dotRect.height / 2 - containerRect.top
-        };
-      }
-      
-      // Si le dot n'est pas trouvé, calculer approximativement la position
-      const element = document.getElementById(elementId);
-      if (element) {
-        const elRect = element.getBoundingClientRect();
-        const width = elRect.width;
-        const height = elRect.height;
-        const centerX = elRect.left + width / 2 - containerRect.left;
-        const centerY = elRect.top + height / 2 - containerRect.top;
-        
-        // Calculer la position selon le côté du losange
+  // Fonction pour mettre à jour les connexions SVG
+  // Fonction updateSvgConnections robuste qui ne dépend plus des éléments DOM visibles pour les connexions
+
+  // Fonction updateSvgConnections mise à jour
+  const updateSvgConnections = useCallback(() => {
+    // Fonction utilitaire pour obtenir les coordonnées absolues d'un point de connexion
+    function getConnectionPoint(
+      elementId,
+      side,
+      shapeType,
+      rect,
+      containerRect
+    ) {
+      const centerX = rect.left + rect.width / 2 - containerRect.left;
+      const centerY = rect.top + rect.height / 2 - containerRect.top;
+
+      // Coordonnées par défaut
+      let x = centerX;
+      let y = centerY;
+
+      // Points de connexion pour les losanges (rotated 45°)
+      if (shapeType === 3) {
+        // Pour les losanges, les coordonnées doivent tenir compte de la rotation de 45°
         switch (side) {
           case "top-right":
-            return { x: centerX + width / 2, y: centerY };
+            // Point droit du losange
+            x = centerX + rect.width / 2;
+            y = centerY;
+            break;
           case "bottom-right":
-            return { x: centerX, y: centerY + height / 2 };
+            // Point bas du losange
+            x = centerX;
+            y = centerY + rect.height / 2;
+            break;
           case "bottom-left":
-            return { x: centerX - width / 2, y: centerY };
+            // Point gauche du losange
+            x = centerX - rect.width / 2;
+            y = centerY;
+            break;
           case "top-left":
-            return { x: centerX, y: centerY - height / 2 };
-          default:
-            return { x: centerX, y: centerY };
+            // Point haut du losange
+            x = centerX;
+            y = centerY - rect.height / 2;
+            break;
+        }
+      } else {
+        // Points de connexion standard pour les autres formes
+        switch (side) {
+          case "top":
+            x = centerX;
+            y = rect.top - containerRect.top;
+            break;
+          case "right":
+            x = rect.right - containerRect.left;
+            y = centerY;
+            break;
+          case "bottom":
+            x = centerX;
+            y = rect.bottom - containerRect.top;
+            break;
+          case "left":
+            x = rect.left - containerRect.left;
+            y = centerY;
+            break;
+          case "top-right":
+            x = rect.right - containerRect.left;
+            y = rect.top - containerRect.top;
+            break;
+          case "bottom-right":
+            x = rect.right - containerRect.left;
+            y = rect.bottom - containerRect.top;
+            break;
+          case "bottom-left":
+            x = rect.left - containerRect.left;
+            y = rect.bottom - containerRect.top;
+            break;
+          case "top-left":
+            x = rect.left - containerRect.left;
+            y = rect.top - containerRect.top;
+            break;
         }
       }
-    }
-  
-    // Pour les autres formes, essayer d'utiliser le dot s'il est visible
-    const dotId = `dot-${elementId}-${side}`;
-    const dot = document.getElementById(dotId);
-    if (dot && getComputedStyle(dot).display !== 'none') {
-      const dotRect = dot.getBoundingClientRect();
-      return {
-        x: dotRect.left + dotRect.width / 2 - containerRect.left,
-        y: dotRect.top + dotRect.height / 2 - containerRect.top
-      };
-    }
-  
-    // Calcul standard pour les autres formes
-    switch (side) {
-      case "top":
-        return {
-          x: rect.left + rect.width / 2 - containerRect.left,
-          y: rect.top - containerRect.top
-        };
-      case "right":
-        return {
-          x: rect.right - containerRect.left,
-          y: rect.top + rect.height / 2 - containerRect.top
-        };
-      case "bottom":
-        return {
-          x: rect.left + rect.width / 2 - containerRect.left,
-          y: rect.bottom - containerRect.top
-        };
-      case "left":
-        return {
-          x: rect.left - containerRect.left,
-          y: rect.top + rect.height / 2 - containerRect.top
-        };
-      default:
-        // Points aux coins
-        let x, y;
-        
-        if (side && side.includes("top")) {
-          y = rect.top - containerRect.top;
-        } else if (side && side.includes("bottom")) {
-          y = rect.bottom - containerRect.top;
-        } else {
-          y = rect.top + rect.height / 2 - containerRect.top;
-        }
-  
-        if (side && side.includes("left")) {
-          x = rect.left - containerRect.left;
-        } else if (side && side.includes("right")) {
-          x = rect.right - containerRect.left;
-        } else {
-          x = rect.left + rect.width / 2 - containerRect.left;
-        }
-  
-        return { x, y };
-    }
-  };
 
-  // Fonction pour calculer les points de contrôle
-  const calculateControlPoint = (side, x, y, distance) => {
-    let controlX, controlY;
-
-    // Point de contrôle
-    switch (side) {
-      case "top":
-        controlX = x;
-        controlY = y - distance;
-        break;
-      case "right":
-        controlX = x + distance;
-        controlY = y;
-        break;
-      case "bottom":
-        controlX = x;
-        controlY = y + distance;
-        break;
-      case "left":
-        controlX = x - distance;
-        controlY = y;
-        break;
-      default:
-        // Pour les coins
-        if (side && side.includes("top")) {
-          controlY = y - distance / 2;
-        } else {
-          controlY = y + distance / 2;
-        }
-        if (side && side.includes("right")) {
-          controlX = x + distance / 2;
-        } else {
-          controlX = x - distance / 2;
-        }
+      return { x, y };
     }
 
-    return { 
-      sourceControlX: controlX, 
-      sourceControlY: controlY, 
-      targetControlX: controlX, 
-      targetControlY: controlY 
-    };
-  };
-
-
-  // Mettre à jour les connexions SVG
-  const updateSvgConnections = useCallback(() => {
     try {
       if (!lines || lines.length === 0) {
         setSvgConnections([]);
         return;
       }
-  
-      const linesData = JSON.parse(JSON.stringify(lines));
-      const containerRect = document.querySelector(".openDiv")?.getBoundingClientRect();
+
+      // Faire une copie des lignes
+      const linesData = [...lines];
+      const containerRect = document
+        .querySelector(".openDiv")
+        ?.getBoundingClientRect();
       if (!containerRect) return;
-  
+
       const newConnections = linesData
         .map((line) => {
           try {
+            // Récupérer les éléments source et cible
             const sourceElement = document.getElementById(line.source);
             const targetElement = document.getElementById(line.target);
-  
-            if (!sourceElement || !targetElement) return null;
-  
-            let sourceX, sourceY, targetX, targetY;
-            
-            // CORRECTION: Ne jamais utiliser les coordonnées exactes stockées
-            // mais toujours recalculer en fonction de la position actuelle des éléments
-            const sourceRect = sourceElement.getBoundingClientRect();
-            const targetRect = targetElement.getBoundingClientRect();
-            
-            const sourceShapeType = parseInt(sourceElement.getAttribute("shape-type") || "1");
-            const targetShapeType = parseInt(targetElement.getAttribute("shape-type") || "1");
-  
-            // Calcul des points de connexion
-            const sourcePoint = calculateConnectionPoint(
-              sourceShapeType, 
-              sourceRect, 
-              containerRect, 
-              line.source, 
-              line.sourceSide, 
-              "source"
-            );
-            
-            const targetPoint = calculateConnectionPoint(
-              targetShapeType, 
-              targetRect, 
-              containerRect, 
-              line.target, 
-              line.targetSide, 
-              "target"
-            );
-            
-            sourceX = sourcePoint.x;
-            sourceY = sourcePoint.y;
-            targetX = targetPoint.x;
-            targetY = targetPoint.y;
-  
-            // Vérification des points
-            if (isNaN(sourceX) || isNaN(sourceY) || isNaN(targetX) || isNaN(targetY)) {
+
+            if (!sourceElement || !targetElement) {
+              console.log(
+                "Élément non trouvé:",
+                line.source,
+                "ou",
+                line.target
+              );
               return null;
             }
-  
-            // Points de contrôle pour la courbe Bézier
-            const controlDistance = Math.min(
-              Math.abs(targetX - sourceX),
-              Math.abs(targetY - sourceY)
-            ) / 2 + 50;
-  
-            const { sourceControlX, sourceControlY } = calculateControlPoint(
-              line.sourceSide, 
-              sourceX, 
-              sourceY, 
-              controlDistance
+
+            // Récupérer les types de formes
+            const sourceShapeType =
+              parseInt(sourceElement.getAttribute("shape-type")) || 0;
+            const targetShapeType =
+              parseInt(targetElement.getAttribute("shape-type")) || 0;
+
+            // Obtenir les rectangles englobants
+            const sourceRect = sourceElement.getBoundingClientRect();
+            const targetRect = targetElement.getBoundingClientRect();
+
+            // Obtenir les points de connexion
+            const sourcePoint = getConnectionPoint(
+              line.source,
+              line.sourceSide,
+              sourceShapeType,
+              sourceRect,
+              containerRect
             );
-  
-            const { targetControlX, targetControlY } = calculateControlPoint(
-              line.targetSide, 
-              targetX, 
-              targetY, 
-              controlDistance
+            const targetPoint = getConnectionPoint(
+              line.target,
+              line.targetSide,
+              targetShapeType,
+              targetRect,
+              containerRect
             );
-  
-            // Créer le chemin SVG
-            const path = `M ${sourceX},${sourceY} C ${sourceControlX},${sourceControlY} ${targetControlX},${targetControlY} ${targetX},${targetY}`;
-  
+
+            // Vérification supplémentaire
+            if (
+              !sourcePoint ||
+              !targetPoint ||
+              isNaN(sourcePoint.x) ||
+              isNaN(sourcePoint.y) ||
+              isNaN(targetPoint.x) ||
+              isNaN(targetPoint.y)
+            ) {
+              console.error(
+                "Points de connexion invalides:",
+                sourcePoint,
+                targetPoint
+              );
+              return null;
+            }
+
+            // Calculer les points de contrôle pour la courbe Bézier
+            const controlDistance =
+              Math.min(
+                Math.abs(targetPoint.x - sourcePoint.x),
+                Math.abs(targetPoint.y - sourcePoint.y)
+              ) /
+                2 +
+              50;
+
+            let sourceControlX, sourceControlY, targetControlX, targetControlY;
+
+            // Déterminer la direction du point de contrôle source
+            if (sourceShapeType === 3) {
+              // Points de contrôle spécifiques pour le losange
+              switch (line.sourceSide) {
+                case "top-right": // Point droit
+                  sourceControlX = sourcePoint.x + controlDistance;
+                  sourceControlY = sourcePoint.y;
+                  break;
+                case "bottom-right": // Point bas
+                  sourceControlX = sourcePoint.x;
+                  sourceControlY = sourcePoint.y + controlDistance;
+                  break;
+                case "bottom-left": // Point gauche
+                  sourceControlX = sourcePoint.x - controlDistance;
+                  sourceControlY = sourcePoint.y;
+                  break;
+                case "top-left": // Point haut
+                  sourceControlX = sourcePoint.x;
+                  sourceControlY = sourcePoint.y - controlDistance;
+                  break;
+                default:
+                  sourceControlX = sourcePoint.x;
+                  sourceControlY = sourcePoint.y;
+              }
+            } else if (sourceShapeType === 4) {
+              // Points de contrôle spécifiques pour le parallélogramme
+              // Calculer l'angle du skew (15 degrés)
+              const skewAngle = Math.PI / 12; // 15 degrés en radians
+              console.log("fsq");
+              switch (line.sourceSide) {
+                case "top":
+                  sourceControlX = sourcePoint.x;
+                  sourceControlY = sourcePoint.y - controlDistance;
+                  break;
+                case "right":
+                  sourceControlX = sourcePoint.x + controlDistance;
+                  sourceControlY = sourcePoint.y;
+                  break;
+                case "bottom":
+                  sourceControlX = sourcePoint.x;
+                  sourceControlY = sourcePoint.y + controlDistance;
+                  break;
+                case "left":
+                  sourceControlX = sourcePoint.x - controlDistance;
+                  sourceControlY = sourcePoint.y;
+                  break;
+                case "top-right":
+                  sourceControlX = sourcePoint.x;
+                  sourceControlY = sourcePoint.y;
+                  break;
+                case "bottom-right":
+                  sourceControlX = sourcePoint.x;
+                  sourceControlY = sourcePoint.y;
+                  break;
+                case "bottom-left":
+                  sourceControlX = sourcePoint.x;
+                  sourceControlY = sourcePoint.y;
+                  break;
+                case "top-left":
+                  sourceControlX = sourcePoint.x;
+                  sourceControlY = sourcePoint.y;
+                  break;
+                default:
+                  sourceControlX = sourcePoint.x;
+                  sourceControlY = sourcePoint.y;
+              }
+            } else {
+              // Points de contrôle standard pour les autres formes
+              switch (line.sourceSide) {
+                case "top":
+                  sourceControlX = sourcePoint.x;
+                  sourceControlY = sourcePoint.y - controlDistance;
+                  break;
+                case "right":
+                  sourceControlX = sourcePoint.x + controlDistance;
+                  sourceControlY = sourcePoint.y;
+                  break;
+                case "bottom":
+                  sourceControlX = sourcePoint.x;
+                  sourceControlY = sourcePoint.y + controlDistance;
+                  break;
+                case "left":
+                  sourceControlX = sourcePoint.x - controlDistance;
+                  sourceControlY = sourcePoint.y;
+                  break;
+                case "top-right":
+                  sourceControlX = sourcePoint.x + controlDistance / 2;
+                  sourceControlY = sourcePoint.y - controlDistance / 2;
+                  break;
+                case "bottom-right":
+                  sourceControlX = sourcePoint.x + controlDistance / 2;
+                  sourceControlY = sourcePoint.y + controlDistance / 2;
+                  break;
+                case "bottom-left":
+                  sourceControlX = sourcePoint.x - controlDistance / 2;
+                  sourceControlY = sourcePoint.y + controlDistance / 2;
+                  break;
+                case "top-left":
+                  sourceControlX = sourcePoint.x - controlDistance / 2;
+                  sourceControlY = sourcePoint.y - controlDistance / 2;
+                  break;
+                default:
+                  sourceControlX = sourcePoint.x;
+                  sourceControlY = sourcePoint.y;
+              }
+            }
+
+            // Déterminer la direction du point de contrôle cible
+            if (targetShapeType === 3) {
+              // Points de contrôle spécifiques pour le losange
+              switch (line.targetSide) {
+                case "top-right": // Point droit
+                  targetControlX = targetPoint.x + controlDistance;
+                  targetControlY = targetPoint.y;
+                  break;
+                case "bottom-right": // Point bas
+                  targetControlX = targetPoint.x;
+                  targetControlY = targetPoint.y + controlDistance;
+                  break;
+                case "bottom-left": // Point gauche
+                  targetControlX = targetPoint.x - controlDistance;
+                  targetControlY = targetPoint.y;
+                  break;
+                case "top-left": // Point haut
+                  targetControlX = targetPoint.x;
+                  targetControlY = targetPoint.y - controlDistance;
+                  break;
+                default:
+                  targetControlX = targetPoint.x;
+                  targetControlY = targetPoint.y;
+              }
+            } else if (targetShapeType === 4) {
+              // Points de contrôle spécifiques pour le parallélogramme
+              // Calculer l'angle du skew (15 degrés)
+              const skewAngle = Math.PI / 12; // 15 degrés en radians
+
+              switch (line.targetSide) {
+                case "top":
+                  targetControlX = targetPoint.x;
+                  targetControlY = targetPoint.y - controlDistance;
+                  break;
+                case "right":
+                  targetControlX = targetPoint.x + controlDistance;
+                  targetControlY = targetPoint.y;
+                  break;
+                case "bottom":
+                  targetControlX = targetPoint.x;
+                  targetControlY = targetPoint.y + controlDistance;
+                  break;
+                case "left":
+                  targetControlX = targetPoint.x - controlDistance;
+                  targetControlY = targetPoint.y;
+                  break;
+                case "top-right":
+                  targetControlX =
+                    targetPoint.x + controlDistance * Math.cos(skewAngle);
+                  targetControlY =
+                    targetPoint.y - controlDistance * Math.sin(skewAngle);
+                  break;
+                case "bottom-right":
+                  targetControlX =
+                    targetPoint.x + controlDistance * Math.cos(-skewAngle);
+                  targetControlY =
+                    targetPoint.y + controlDistance * Math.sin(-skewAngle);
+                  break;
+                case "bottom-left":
+                  targetControlX =
+                    targetPoint.x - controlDistance * Math.cos(skewAngle);
+                  targetControlY =
+                    targetPoint.y + controlDistance * Math.sin(skewAngle);
+                  break;
+                case "top-left":
+                  targetControlX =
+                    targetPoint.x - controlDistance * Math.cos(-skewAngle);
+                  targetControlY =
+                    targetPoint.y - controlDistance * Math.sin(-skewAngle);
+                  break;
+                default:
+                  targetControlX = targetPoint.x;
+                  targetControlY = targetPoint.y;
+              }
+            } else {
+              // Points de contrôle standard pour les autres formes
+              switch (line.targetSide) {
+                case "top":
+                  targetControlX = targetPoint.x;
+                  targetControlY = targetPoint.y - controlDistance;
+                  break;
+                case "right":
+                  targetControlX = targetPoint.x + controlDistance;
+                  targetControlY = targetPoint.y;
+                  break;
+                case "bottom":
+                  targetControlX = targetPoint.x;
+                  targetControlY = targetPoint.y + controlDistance;
+                  break;
+                case "left":
+                  targetControlX = targetPoint.x - controlDistance;
+                  targetControlY = targetPoint.y;
+                  break;
+                case "top-right":
+                  targetControlX = targetPoint.x + controlDistance / 2;
+                  targetControlY = targetPoint.y - controlDistance / 2;
+                  break;
+                case "bottom-right":
+                  targetControlX = targetPoint.x + controlDistance / 2;
+                  targetControlY = targetPoint.y + controlDistance / 2;
+                  break;
+                case "bottom-left":
+                  targetControlX = targetPoint.x - controlDistance / 2;
+                  targetControlY = targetPoint.y + controlDistance / 2;
+                  break;
+                case "top-left":
+                  targetControlX = targetPoint.x - controlDistance / 2;
+                  targetControlY = targetPoint.y - controlDistance / 2;
+                  break;
+                default:
+                  targetControlX = targetPoint.x;
+                  targetControlY = targetPoint.y;
+              }
+            }
+
+            // Créer le chemin SVG avec courbe de Bézier
+            const path = `M ${sourcePoint.x},${sourcePoint.y} C ${sourceControlX},${sourceControlY} ${targetControlX},${targetControlY} ${targetPoint.x},${targetPoint.y}`;
+
             return {
               id: line.id,
               path,
@@ -455,217 +742,58 @@ export default function MainLogigramme({ tool, onUuidChange }) {
               toolType: line.toolType,
             };
           } catch (error) {
-            console.error("Error calculating connection for line:", line, error);
+            console.error("Erreur de calcul de connexion:", error);
             return null;
           }
         })
         .filter((conn) => conn !== null);
-  
+
+      // Mettre à jour les connexions SVG seulement si on a des connexions valides
       if (newConnections.length > 0) {
         setSvgConnections(newConnections);
       }
     } catch (error) {
-      console.error("Error in updateSvgConnections:", error);
+      console.error("Erreur dans updateSvgConnections:", error);
     }
-  }, [lines, calculateControlPoint]);
-
+  }, [lines]);
+  // Remplacez votre useEffect pour les lignes avec ceci:
   useEffect(() => {
-    // Cette fonction met à jour les connexions à chaque rendu des éléments
-    const updateAllConnections = () => {
-      if (lines.length > 0 && elements.length > 0) {
-        updateSvgConnections();
-      }
-    };
-    
-    // Appeler immédiatement puis configurer un observateur pour les modifications DOM
-    updateAllConnections();
-    
-    // Observer chaque forme pour tout changement de position ou de taille
-    const observer = new MutationObserver(updateAllConnections);
-    const shapes = document.querySelectorAll(".shape-elementy");
-    
-    shapes.forEach(shape => {
-      observer.observe(shape, { 
-        attributes: true,
-        attributeFilter: ['style'],
-        subtree: true
-      });
-    });
-    
-    return () => {
-      observer.disconnect();
-    };
-  }, [elements, lines, updateSvgConnections]);
-  
-
-  useEffect(() => {
-    const handleElementMove = () => {
-      if (lines.length > 0) {
-        updateSvgConnections();
-      }
-    };
-    
-    // Observer les changements de position des éléments
-    const observer = new MutationObserver(handleElementMove);
-    const shapes = document.querySelectorAll(".shape-elementy");
-    
-    shapes.forEach(shape => {
-      observer.observe(shape, { 
-        attributes: true, 
-        attributeFilter: ['style'] 
-      });
-    });
-    
-    return () => {
-      observer.disconnect();
-    };
-  }, [elements, lines, updateSvgConnections]);
-
-  useEffect(() => {
-    // Mettre à jour les connexions chaque fois que les éléments changent
-    if (elements.length > 0 && lines.length > 0) {
-      setTimeout(() => {
-        updateSvgConnections();
-      }, 100);
-    }
-  }, [elements, updateSvgConnections]);  
-  useEffect(() => {
-    // This useEffect specifically handles when lines state changes
     if (lines.length > 0) {
-      // Ensure the DOM has been updated before calculating positions
+      // Utiliser un seul setTimeout, avec un délai raisonnable
       const timer = setTimeout(() => {
         updateSvgConnections();
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [lines, updateSvgConnections]);
-  // Fonction pour calculer les points de connexion
-  
-  // Gérer le déplacement des éléments
-  const setElementPosition = (e) => {
-    if (!isDown || !uuid) return;
-    
-    const el = elements.find((el) => el.id === uuid);
-    if (!el) return;
-  
-    const rect1 = document.getElementById(uuid).getBoundingClientRect();
-    const rect3 = document.querySelector(".openDiv").getBoundingClientRect();
-  
-    // Vérifier les limites
-    let canMove = true;
-  
-    if (rect1.right > rect3.right - 10) {
-      setBlockRight(true);
-      canMove = false;
-    } else if (rect1.left < rect3.left + 8) {
-      setBlockLeft(true);
-      el.x = 8;
-      canMove = false;
-    } else if (rect1.top < rect3.top) {
-      setBlockTop(true);
-      el.y = 0;
-      canMove = false;
-    } else if (rect1.bottom > rect3.bottom) {
-      setBlockBottom(false);
-      canMove = false;
-    }
-  
-    // Si on n'est pas bloqué, on peut bouger librement
-    if (canMove && !blockLeft && !blockRight && !blockTop && !blockBottom) {
-      setElements((prevElements) => {
-        const newElements = prevElements.map((element) => {
-          if (element.id === uuid) {
-            return {
-              ...element,
-              x: parseInt(element.x) + e.movementX,
-              y: parseInt(element.y) + e.movementY,
-            };
-          } else {
-            return element;
-          }
-        });
-        
-        // Important: retourner les nouveaux éléments
-        return newElements;
-      });
-    }
-  
-    // Détecter quand on peut débloquer
-    if (blockLeft && e.movementX > 0) {
-      setBlockLeft(false);
-    } else if (blockRight && e.movementX < 0) {
-      setBlockRight(false);
-    } else if (blockTop && e.movementY > 0) {
-      setBlockTop(false);
-    } else if (blockBottom && e.movementY < 0) {
-      setBlockBottom(false);
-    }
-  
-    // CORRECTION: Forcer une mise à jour des connexions SVG immédiatement
-    // et supprimer les coordonnées exactes pour forcer un recalcul
-    if (lines.length > 0) {
-      // Annuler toute mise à jour précédente en attente
-      if (window.svgUpdateRequest) {
-        cancelAnimationFrame(window.svgUpdateRequest);
-      }
-      
-      // Supprimer les coordonnées exactes des lignes affectées par ce mouvement
-      setLines(prevLines => 
-        prevLines.map(line => {
-          if (line.source === uuid || line.target === uuid) {
-            // Supprimer les coordonnées exactes pour forcer un recalcul
-            const { exactCoords, ...rest } = line;
-            return rest;
-          }
-          return line;
-        })
-      );
-      
-      // Planifier une mise à jour immédiate des connexions
-      window.svgUpdateRequest = requestAnimationFrame(() => {
-        updateSvgConnections();
-        window.svgUpdateRequest = null;
-      });
-    }
-  };
+      }, 100);
 
-  // Gérer le clic sur un point de connexion
+      return () => clearTimeout(timer); // Nettoyer le timeout si le composant est démonté
+    }
+  }, [lines, elements, updateSvgConnections]);
+
+  // Modifiez votre fonction handleDotClick pour utiliser un seul setTimeout:
   const handleDotClick = (elementId, dot, side) => {
     if (!sourceElementRef.current) {
       // Premier clic - sélectionner le point de départ
       sourceElementRef.current = elementId;
       sourceSideRef.current = side;
       sourceDotRef.current = dot;
-      
-      // Stocker les coordonnées exactes du point de départ
-      const containerRect = document.querySelector(".openDiv")?.getBoundingClientRect();
-      if (containerRect && dot) {
-        const dotRect = dot.getBoundingClientRect();
-        const sourceX = dotRect.left + dotRect.width / 2 - containerRect.left;
-        const sourceY = dotRect.top + dotRect.height / 2 - containerRect.top;
-        
-        // Stocker temporairement les coordonnées
-        window._tempSourceCoords = { x: sourceX, y: sourceY };
-      }
-      
       dot.style.backgroundColor = "#e74c3c";
+      console.log("Source set:", elementId, side);
     } else {
-      // Deuxième clic - créer la connexion
+      // Deuxième clic - créer la connexion seulement si on clique sur un élément différent
       if (sourceElementRef.current !== elementId) {
         const targetElementId = elementId;
         const targetSide = side;
+
+        // Créer une nouvelle ligne avec un ID unique
         const lineId = uuidv4();
-        
-        // Stocker les coordonnées exactes du point de destination
-        const containerRect = document.querySelector(".openDiv")?.getBoundingClientRect();
-        let targetX, targetY;
-        
-        if (containerRect && dot) {
-          const dotRect = dot.getBoundingClientRect();
-          targetX = dotRect.left + dotRect.width / 2 - containerRect.left;
-          targetY = dotRect.top + dotRect.height / 2 - containerRect.top;
-        }
-  
+        console.log(
+          "Creating new line:",
+          sourceElementRef.current,
+          sourceSideRef.current,
+          "to",
+          targetElementId,
+          targetSide
+        );
+
         const newLine = {
           id: lineId,
           source: sourceElementRef.current,
@@ -676,158 +804,191 @@ export default function MainLogigramme({ tool, onUuidChange }) {
           thickness: 2,
           toolType: tool.tool,
         };
-        
-        // Si nous avons les coordonnées exactes, les ajouter à la ligne
-        if (window._tempSourceCoords && targetX !== undefined) {
-          newLine.exactCoords = {
-            source: window._tempSourceCoords,
-            target: { x: targetX, y: targetY }
-          };
+        const sourceElement = document.getElementById(sourceElementRef.current);
+        const targetElement = document.getElementById(targetElementId);
+
+        if (sourceElement && sourceElement.getAttribute("shape-type") === "4") {
+          newLine.sourceOffset = { x: 0, y: 0 }; // Ajustez ces valeurs selon vos besoins
         }
-  
-        // Ajouter la ligne
+
+        if (targetElement && targetElement.getAttribute("shape-type") === "4") {
+          newLine.targetOffset = { x: 0, y: 0 }; // Ajustez ces valeurs selon vos besoins
+        }
+        // Ajouter la nouvelle ligne à la liste des lignes
         setLines((prevLines) => [...prevLines, newLine]);
-        
-        // Nettoyer les coordonnées temporaires
-        window._tempSourceCoords = null;
-        
-        // Mise à jour des connexions SVG
-        setTimeout(() => {
-          updateSvgConnections();
-        }, 50);
       }
-  
-      // Réinitialiser la sélection
+
+      // Réinitialiser la sélection dans tous les cas
       if (sourceDotRef.current) {
-        sourceDotRef.current.style.backgroundColor = "#3498db";
+        sourceDotRef.current.style.backgroundColor = "#3498db"; // Remettre le point source à sa couleur d'origine
       }
       sourceElementRef.current = null;
       sourceSideRef.current = null;
       sourceDotRef.current = null;
     }
   };
-  
-  
-  // Créer la grille de points
-  const createDotPattern = () => {
-    if (document.getElementById("momo")) return;
 
-    const container = document.querySelector(".openDiv");
-    if (!container) return;
-
+  // Fonction pour créer un modèle de points sur la grille
+  const createDotPattern = useCallback(() => {
     const dotBgColor = "#00000050";
-    const spacing = 25;
-    const windowWidth = 2500;
-    const windowHeight = 3000;
+    const dotHoverColor = "black";
 
+    // Create a container for the dots
     const dotContainer = document.createElement("div");
-    Object.assign(dotContainer.style, {
-      position: "absolute",
-      top: "8px",
-      left: "8px",
-      width: "100%",
-      height: "100%",
-      pointerEvents: "none",
-    });
+    dotContainer.style.position = "absolute";
+    dotContainer.style.top = "8px";
+    dotContainer.style.left = "8px";
+    dotContainer.style.width = "100%";
+    dotContainer.style.height = "100%";
+    dotContainer.style.pointerEvents = "none";
     dotContainer.id = "momo";
 
-    const fragment = document.createDocumentFragment();
+    // Use dynamic canvas size
+    const windowWidth = canvasSize.width;
+    const windowHeight = canvasSize.height;
+
+    // Spacing between dots in pixels
+    const spacing = 25;
+
+    // Calculate number of dots in each dimension
     const dotsX = Math.floor(windowWidth / spacing);
     const dotsY = Math.floor(windowHeight / spacing);
 
-    const dotTemplate = document.createElement("div");
-    Object.assign(dotTemplate.style, {
-      position: "absolute",
-      width: "3px",
-      height: "3px",
-      backgroundColor: dotBgColor,
-      borderRadius: "50%",
-      pointerEvents: "auto",
-    });
-    dotTemplate.classList.add("zone");
+    // Create dots and position them on a grid
+    for (let y = 0; y < dotsY; y++) {
+      for (let x = 0; x < dotsX; x++) {
+        const dot = document.createElement("div");
 
-    const handleDotHover = (e) => {
-      const target = e.target;
-      const x = target.getAttribute("x");
-      const y = target.getAttribute("y");
-      if (x && y) {
-        setDotPosition([x, y]);
+        // Style the dot
+        dot.style.position = "absolute";
+        dot.style.width = "3px";
+        dot.style.height = "3px";
+        dot.style.backgroundColor = dotBgColor;
+        dot.style.borderRadius = "50%";
+        dot.setAttribute("x", `${x * spacing + 8}`);
+        dot.setAttribute("y", `${y * spacing + 8}`);
+        dot.classList.add("zone");
+
+        // Position the dot
+        dot.style.left = `${x * spacing}px`;
+        dot.style.top = `${y * spacing}px`;
+        dot.style.pointerEvents = "auto";
+
+        // Make dots more interactive
+        dot.addEventListener("mouseover", function () {
+          this.style.backgroundColor = dotHoverColor;
+          setDotPosition([this.getAttribute("x"), this.getAttribute("y")]);
+        });
+
+        // Add the dot to the container
+        dotContainer.appendChild(dot);
       }
-    };
+    }
 
-    // Création par lots
-    const batchSize = 500;
-    let dotsCreated = 0;
-    let currentBatch = 0;
-    const totalDots = dotsX * dotsY;
-
-    const processBatch = () => {
-      const batchStart = currentBatch * batchSize;
-      const batchEnd = Math.min(batchStart + batchSize, totalDots);
-
-      for (let i = batchStart; i < batchEnd; i++) {
-        const x = i % dotsX;
-        const y = Math.floor(i / dotsX);
-
-        const dot = dotTemplate.cloneNode(false);
-        const xPos = x * spacing;
-        const yPos = y * spacing;
-
-        dot.style.left = `${xPos}px`;
-        dot.style.top = `${yPos}px`;
-        dot.setAttribute("x", `${xPos + 8}`);
-        dot.setAttribute("y", `${yPos + 8}`);
-
-        fragment.appendChild(dot);
+    // Add the container to the document
+    const openDiv = document.querySelector(".openDiv");
+    if (openDiv) {
+      // Remove existing dot pattern if exists
+      const existingDotContainer = document.getElementById("momo");
+      if (existingDotContainer) {
+        existingDotContainer.remove();
       }
 
-      dotsCreated += batchEnd - batchStart;
-      currentBatch++;
+      openDiv.appendChild(dotContainer);
+    }
+  }, [canvasSize]);
 
-      if (dotsCreated < totalDots) {
-        requestAnimationFrame(processBatch);
-      } else {
-        dotContainer.appendChild(fragment);
-        container.appendChild(dotContainer);
-
-        dotContainer.addEventListener(
-          "mouseover",
-          (e) => {
-            if (e.target.classList.contains("zone")) {
-              handleDotHover(e);
-            }
-          },
-          { passive: true }
-        );
-      }
-    };
-
-    requestAnimationFrame(processBatch);
-  };
-
+  // Update useEffect to call createDotPattern
   useEffect(() => {
     createDotPattern();
-  }, []);
+  }, [createDotPattern]);
 
-  // Sélectionner un élément
   const select = (e, id) => {
     setMouseIsDown(true);
     setUuid(id);
   };
 
-  // Créer une nouvelle forme
+  const setElementPosition = (e) => {
+    if (isDown && uuid !== null) {
+      const el = elements.find((el) => el.id === uuid);
+      if (!el) return;
+
+      const rect1 = document.getElementById(uuid).getBoundingClientRect();
+      const rect3 = document.querySelector(".openDiv").getBoundingClientRect();
+
+      // Définir l'ID de l'élément en cours de déplacement
+      window.movingElementId = uuid;
+
+      // Vérifier les limites
+      if (rect1.right > rect3.right - 10) {
+        setBlockRight(true);
+      } else if (rect1.left < rect3.left + 8) {
+        setBlockLeft(true);
+        el.x = 8;
+      } else if (rect1.top < rect3.top) {
+        setBlockTop(true);
+        el.y = 0;
+      } else if (rect1.bottom > rect3.bottom) {
+        setBlockBottom(true);
+      } else {
+        // Si on n'est pas bloqué, on peut bouger librement
+        if (!blockLeft && !blockRight && !blockTop && !blockBottom) {
+          setElements((prevElements) => {
+            return prevElements.map((element) => {
+              if (element.id === uuid) {
+                return {
+                  ...element,
+                  x: parseInt(element.x) + e.movementX,
+                  y: parseInt(element.y) + e.movementY,
+                };
+              } else {
+                return element;
+              }
+            });
+          });
+        }
+      }
+
+      // Détecter quand on peut débloquer
+      if (blockLeft && e.movementX > 0) {
+        setBlockLeft(false);
+      } else if (blockRight && e.movementX < 0) {
+        setBlockRight(false);
+      } else if (blockTop && e.movementY > 0) {
+        setBlockTop(false);
+      } else if (blockBottom && e.movementY < 0) {
+        setBlockBottom(false);
+      }
+
+      // Mettre à jour les connexions SVG après déplacement
+      if (lines.length > 0) {
+        // Utiliser requestAnimationFrame pour limiter les mises à jour graphiques
+        if (window.svgUpdateTimer) {
+          cancelAnimationFrame(window.svgUpdateTimer);
+        }
+
+        window.svgUpdateTimer = requestAnimationFrame(() => {
+          updateSvgConnections();
+        });
+      }
+    }
+  };
+
   const mouseIsDown = (e) => {
     if (tool.tool !== 0 && tool.tool < 6) {
       setMouseIsDown(true);
+
+      // Générer un nouvel UUID pour cet élément
       const newId = uuidv4();
 
+      // Définir une forme avec dimensions par défaut
       let newShape = {
         id: newId,
         x: dotPosition[0],
         y: dotPosition[1],
         width: defaultDimensions.current.width,
         height: defaultDimensions.current.height,
-        bgColor: "#ffffff",
+        bgColor: "white",
         border: "1px solid gray",
         text: "",
       };
@@ -862,16 +1023,18 @@ export default function MainLogigramme({ tool, onUuidChange }) {
           newShape = {
             ...newShape,
             type: 4,
-            radius: "5%",
-            transform: "skewX(-15deg)",
+            width: newShape.width,
+            height: newShape.height,
+            bgColor: "none",
+            border: "none",
           };
           break;
         case 5: // Autre forme
           newShape = {
             ...newShape,
             type: 5,
-            width: newShape.width + 5,
-            height: newShape.height + 5,
+            width: newShape.width,
+            height: newShape.height,
             bgColor: "none",
             border: "none",
           };
@@ -884,17 +1047,21 @@ export default function MainLogigramme({ tool, onUuidChange }) {
           break;
       }
 
+      // Mettre à jour le style actuel
       setStyle(newShape);
-      setColor("#ffffff");
+
+      // Ajouter l'élément au tableau
       setElements((prevElements) => [...prevElements, newShape]);
+
+      // Stocker l'UUID pour le dimensionnement
       setUuid(newId);
     }
   };
 
-  // Trouver l'élément le plus proche
   const findClosestElement = (referenceElement, elements) => {
     if (!elements.length || referenceElement == null) return null;
 
+    // Obtenir la position de l'élément de référence
     const refRect = referenceElement.getBoundingClientRect();
     const refX = refRect.left;
     const refY = refRect.top;
@@ -902,12 +1069,16 @@ export default function MainLogigramme({ tool, onUuidChange }) {
     let closestElement = elements[0];
     let minDistance = Infinity;
 
+    // Parcourir tous les éléments et trouver le plus proche
     elements.forEach((element) => {
+      // Ignorer l'élément de référence s'il est dans la liste
       if (element === referenceElement) return;
 
       const rect = element.getBoundingClientRect();
       const x = rect.left + rect.width / 2;
       const y = rect.top + rect.height / 2;
+
+      // Calculer la distance euclidienne
       const distance = Math.sqrt(Math.pow(refX - x, 2) + Math.pow(refY - y, 2));
 
       if (distance < minDistance) {
@@ -919,20 +1090,26 @@ export default function MainLogigramme({ tool, onUuidChange }) {
     return closestElement;
   };
 
-  // Gérer le relâchement de la souris
   const mouseIsUp = () => {
     setMouseIsDown(false);
-  
+
+    // Réinitialiser l'ID de l'élément en mouvement
+    window.movingElementId = null;
+
     // Si l'outil d'alignement est actif, aligner à la grille
     if (tool.tool === 0 && uuid) {
       const reference = document.getElementById(uuid);
-      const otherElements = Array.from(document.querySelector("#momo").children);
+      const otherElements = Array.from(
+        document.querySelector("#momo").children
+      );
       const closest = findClosestElement(reference, otherElements);
-  
+
       if (closest) {
-        document.getElementById(uuid).style.top = closest.getAttribute("y") + "px";
-        document.getElementById(uuid).style.left = closest.getAttribute("x") + "px";
-  
+        document.getElementById(uuid).style.top =
+          closest.getAttribute("y") + "px";
+        document.getElementById(uuid).style.left =
+          closest.getAttribute("x") + "px";
+
         setElements((prevElements) => {
           return prevElements.map((element) => {
             if (element.id === uuid) {
@@ -948,30 +1125,40 @@ export default function MainLogigramme({ tool, onUuidChange }) {
         });
       }
     }
-  
-    // Mettre à jour les connexions - CORRECTION: forcer une mise à jour plus rapide
+
+    // Annuler toute mise à jour d'animation en cours
+    if (window.svgUpdateTimer) {
+      cancelAnimationFrame(window.svgUpdateTimer);
+      window.svgUpdateTimer = null;
+    }
+
+    // Mettre à jour les connexions si nécessaire
     if (lines.length > 0) {
-      // Supprimer toutes les coordonnées exactes pour forcer un recalcul des connexions
-      setLines(prevLines => 
-        prevLines.map(line => {
-          const { exactCoords, ...rest } = line;
-          return rest;
-        })
-      );
-      
-      // Mise à jour immédiate des connexions
-      updateSvgConnections();
+      setTimeout(() => {
+        updateSvgConnections();
+
+        // Réafficher les points de connexion en mode connexion
+        if (connectingMode) {
+          const shapes = document.querySelectorAll("[shape-type]");
+          shapes.forEach((element) => {
+            showConnectionPoints(element);
+          });
+        }
+      }, 50);
     }
   };
 
-  
-  // Modifier les dimensions d'une forme
   const setDimensions = (e, active) => {
-    if ((isDown && tool.tool !== 0 && tool.tool < 6 && tool.tool != -1) || active) {
-      const number = 25;
+    console.log(tool, "dsfds");
+    if (
+      (isDown && tool.tool !== 0 && tool.tool < 6 && tool.tool != -1) ||
+      active
+    ) {
+      const number = 25; // Incrément de taille
 
+      // Mettre à jour le style local en fonction du type d'outil
       if (tool.tool === 2 || tool.tool === 3) {
-        // Cercle ou Losange - mêmes dimensions
+        // Cercle ou Losange - même largeur et hauteur
         if (e.movementX > 0 || e.movementY > 0) {
           setStyle((prevStyle) => ({
             ...prevStyle,
@@ -986,7 +1173,7 @@ export default function MainLogigramme({ tool, onUuidChange }) {
           }));
         }
       } else if (tool.tool === 1 || tool.tool === 4 || tool.tool === 5) {
-        // Rectangle et autres - dimensions indépendantes
+        // Rectangle, Parallélogramme ou Autre - dimensions indépendantes
         if (e.movementX > 0) {
           setStyle((prevStyle) => ({
             ...prevStyle,
@@ -1030,7 +1217,6 @@ export default function MainLogigramme({ tool, onUuidChange }) {
     }
   };
 
-  // Changer la couleur d'une forme
   const changeShapeColor = (newColor) => {
     setElements((prevElements) => {
       return prevElements.map((element) => {
@@ -1046,21 +1232,23 @@ export default function MainLogigramme({ tool, onUuidChange }) {
     });
   };
 
-  // Activer l'édition de texte
   const manageInput = () => {
     tool.tool = -1;
     const el = document.getElementById("input" + uuid);
     if (el) {
+      // Rendre l'élément visible
       el.style.display = "flex";
+
+      // Augmenter le z-index pour s'assurer qu'il est au-dessus
       el.style.zIndex = "3";
       el.focus();
+      // Mettre le focus sur l'input après un court délai
       setTimeout(() => {
         el.focus();
       }, 10);
     }
   };
 
-  // Mettre à jour le texte d'un élément
   const setTextElement = () => {
     const el = document.getElementById("input" + uuid);
     if (el) {
@@ -1079,60 +1267,79 @@ export default function MainLogigramme({ tool, onUuidChange }) {
     }
   };
 
-  // Afficher le menu pour un élément
   const menu = (elementId) => {
-    if (!elementId) return;
-    
-    const element = document.getElementById(elementId);
-    if (!element) return;
-    
-    // Obtenir la couleur de l'élément et la convertir en hex
-    const bgColor = element.style.backgroundColor;
-    if (bgColor && bgColor !== "none") {
-      console.log("dsv")
-      setColor(rgbToHex(bgColor));
-    }
     setUuid(elementId);
-    const shapeMenu = document.querySelector(".shapeMenu");
-    if (shapeMenu) {
-      shapeMenu.style.display = "flex";
-      shapeMenu.style.left =
-        parseInt(element.style.left) +
-        parseInt(element.style.width) -
-        100 +
-        "px";
-      shapeMenu.style.top = parseInt(element.style.top) - 45 + "px";
+    const element = document.getElementById(elementId);
+    if (element) {
+      const shapeMenu = document.querySelector(".shapeMenu");
+      if (shapeMenu) {
+        shapeMenu.style.display = "flex";
+        shapeMenu.style.left =
+          parseInt(element.style.left) +
+          parseInt(element.style.width) -
+          100 +
+          "px";
+        shapeMenu.style.top = parseInt(element.style.top) - 45 + "px";
+      }
     }
   };
 
-  // Supprimer un élément et ses connexions
   const deleteElement = () => {
+    // Supprimer l'élément
     setElements((prevElements) =>
       prevElements.filter((element) => element.id !== uuid)
     );
 
+    // Supprimer également toutes les lignes connectées à cet élément
     setLines((prevLines) =>
       prevLines.filter((line) => line.source !== uuid && line.target !== uuid)
     );
 
+    // Cacher le menu
     const shapeMenu = document.querySelector(".shapeMenu");
     if (shapeMenu) {
       shapeMenu.style.display = "none";
     }
 
+    // Mettre à jour l'affichage des connexions
     setTimeout(() => {
       updateSvgConnections();
     }, 100);
   };
 
-  // Définir le style after pour le menu
+  // Gestion du zoom
+  const handleWheel = (e) => {
+    e.preventDefault();
+
+    if (tool.tool === -1) {
+      document.querySelector(".openDiv").scrollTo({
+        top: 5000,
+        left: 5000,
+        behavior: "smooth",
+      });
+      // Déterminer la direction du zoom
+      const delta = e.deltaY;
+
+      // Ajuster le zoom (limiter entre 0.5 et 3)
+
+      setZoom((prevZoom) => {
+        let newZoom = prevZoom - delta * 0.001;
+        return Math.max(0.5, Math.min(3, newZoom));
+      });
+    }
+  };
+
   const shapeStyleAfter = (width) => {
+    console.log(width, "erfg");
+    // Sélectionner la div shapeMenu
     const shapeMenu = document.querySelector(".shapeMenu");
     if (!shapeMenu) return;
 
+    // Créer une feuille de style dynamique
     const styleSheet = document.createElement("style");
     document.head.appendChild(styleSheet);
 
+    // Définir le style ::after pour cette classe
     styleSheet.textContent = `
       .shapeMenu::after {
         content:"";
@@ -1144,29 +1351,52 @@ export default function MainLogigramme({ tool, onUuidChange }) {
         height: 20px;
       }`;
 
+    // Assurez-vous que la div a position relative
     shapeMenu.style.position = "relative";
   };
-
-  // Calculer la taille de police en fonction du texte et des dimensions
   const calculateFontSize = (text, width, height) => {
     if (!text) return "14px"; // Taille par défaut
 
     // Calculer la taille de base en fonction de la largeur disponible
     const baseSize = Math.min(width / (text.length * 0.7), height / 2);
 
-    // Limiter la taille dans une plage raisonnable
+    // Limiter la taille dans une plage raisonnable (entre 9px et 20px)
     return Math.max(9, Math.min(baseSize, 20)) + "px";
   };
 
-  // Gérer le changement de couleur via l'input
-  const handleColorInputChange = () => {
-    const newColor = document.getElementById("colorInput").value;
-    setColor(newColor);
-    changeShapeColor(newColor);
-  };
+  const [jsonData, setJsonData ] = useState()
+  function importJsonFile(file) {
+    const openFile = new Promise((resolve, reject) => {
+      const reader = new FileReader();
 
+      reader.onload = (event) => {
+        
+        try {
+          // Parser le contenu JSON
+          setJsonData(JSON.parse(event.target.result))
+          
+          resolve(jsonData);
+         
+         
+        } catch (error) {
+          reject(new Error('Erreur de parsing JSON'));
+        }
+      };
+  
+      // Lire le fichier comme texte
+      reader.readAsText(file);
+    } );
+    openFile.then(() => {
+console.log(lines, "ff")
+        setElements(jsonData)
+
+    })
+
+    
+  }
+  
   return (
-    <div style={{ flex: "auto", width: "84%" }}>
+    <div style={{ flex: "auto" }}>
       <div
         id="boxs"
         onMouseMove={(e) => {
@@ -1187,9 +1417,23 @@ export default function MainLogigramme({ tool, onUuidChange }) {
           boxSizing: "border-box",
         }}
       >
+        <div onClick={() => [saveToJson(), console.log(elements)]}>save</div>
+       
+        <div>
+      <input 
+        type="file" 
+        onChange={(e) => importJsonFile(e.target.files[0])}
+      />
+
+   
+
+        </div>
         <div
+          ref={containerRef}
+          onWheel={(e) => [handleWheel(e), console.log(zoom, "icic")]}
           className="openDiv"
           onMouseDown={(e) => {
+            // Vérifier si on peut créer un nouvel élément
             if (
               tool.tool > 0 &&
               tool.tool < 6 &&
@@ -1198,18 +1442,22 @@ export default function MainLogigramme({ tool, onUuidChange }) {
             ) {
               mouseIsDown(e);
             } else if (tool.tool == -1) {
-              const inputElement = document.getElementById("input" + uuid);
-              if (inputElement) {
-                inputElement.style.zIndex = "1";
-              }
+              document.getElementById("input" + uuid).style.zIndex = 1;
             }
           }}
           onMouseUp={mouseIsUp}
           style={{
             position: "relative",
-            width: "2500px",
-            height: "3000px",
+            width: `${canvasSize.width}px`,
+            height: `${canvasSize.height}px`,
             background: "white",
+            // Add scrollable areas with infinite canvas feeling
+            overflowX: "scroll",
+            overflowY: "scroll",
+            transform: `scale(${zoom})`,
+            transformOrigin: "top left",
+
+            transition: "transform 0.1s ease",
           }}
         >
           {/* Conteneur SVG pour les connexions */}
@@ -1228,6 +1476,7 @@ export default function MainLogigramme({ tool, onUuidChange }) {
             <defs>
               {svgConnections &&
                 svgConnections.map((conn) => {
+                  // Créez la flèche pour les outils 6 et 7
                   if (
                     !conn.toolType ||
                     conn.toolType === 6 ||
@@ -1254,7 +1503,7 @@ export default function MainLogigramme({ tool, onUuidChange }) {
             {svgConnections &&
               svgConnections.map((conn) => {
                 if (!conn.toolType || conn.toolType === 6) {
-                  // Flèche standard
+                  // Flèche standard (outil 6)
                   return (
                     <path
                       key={`path-${conn.id}`}
@@ -1266,7 +1515,7 @@ export default function MainLogigramme({ tool, onUuidChange }) {
                     />
                   );
                 } else if (conn.toolType === 7) {
-                  // Ligne pointillée avec flèche
+                  // Ligne pointillée avec flèche (outil 7)
                   return (
                     <path
                       key={`path-${conn.id}`}
@@ -1279,7 +1528,7 @@ export default function MainLogigramme({ tool, onUuidChange }) {
                     />
                   );
                 } else if (conn.toolType === 8) {
-                  // Points sans flèche
+                  // Points sans flèche (outil 8)
                   return (
                     <path
                       key={`path-${conn.id}`}
@@ -1298,19 +1547,20 @@ export default function MainLogigramme({ tool, onUuidChange }) {
           <div
             className="shapeMenu"
             onMouseOver={() => menu(uuid)}
-            onMouseOut={() => manageColorMenuActive()}
+            onMouseOut={() => {
+              document.querySelector(".shapeMenu").style.display = "none";
+            }}
           >
-            <img src="/icons/policeIcon.png" onClick={manageInput} />
+            <img src="/icons/policeIcon.png" onClick={() => manageInput()} />
 
-            <input
-              id="colorInput"
-              onChange={handleColorInputChange}
-              type="color"
-              value={color}
-              className="border-0 rounded w-50 bg-transparent"
+            <PopoverPicker
+              color={color}
+              onChange={(newColor) => {
+                setColor(newColor);
+                changeShapeColor(newColor);
+              }}
             />
-
-            <img onClick={deleteElement} src="/icons/trash.png" />
+            <img onClick={() => deleteElement()} src="/icons/trash.png" />
           </div>
 
           {/* Rendu des éléments */}
@@ -1319,7 +1569,9 @@ export default function MainLogigramme({ tool, onUuidChange }) {
             .map((elementStyle) => (
               <div
                 onMouseUp={mouseIsUp}
-                onMouseOut={() => manageColorMenuActive()}
+                onMouseOut={() => {
+                  document.querySelector(".shapeMenu").style.display = "none";
+                }}
                 onMouseOver={() => {
                   !isDown && tool.tool < 6 ? menu(elementStyle.id) : null;
                 }}
@@ -1342,7 +1594,9 @@ export default function MainLogigramme({ tool, onUuidChange }) {
                 shape-type={elementStyle.type}
               >
                 <textarea
-                  onMouseDown={(e) => select(e, elementStyle.id)}
+                  onMouseDown={(e) => {
+                    select(e, elementStyle.id);
+                  }}
                   id={"input" + elementStyle.id}
                   className="text-dark shape-input"
                   style={{
@@ -1357,18 +1611,19 @@ export default function MainLogigramme({ tool, onUuidChange }) {
                     transform:
                       "translate(-50%, -50%)" +
                       (elementStyle.transform
-                        ? ` ${elementStyle.transform.includes("rotate")
-                          ? "rotate(-45deg)"
-                          : elementStyle.transform.includes("skew")
-                            ? "skewX(15deg)"
-                            : ""
-                        }`
+                        ? ` ${
+                            elementStyle.transform.includes("rotate")
+                              ? "rotate(-45deg)"
+                              : elementStyle.transform.includes("skew")
+                              ? "skewX(15deg)"
+                              : ""
+                          }`
                         : ""),
                     textAlign: "center",
                     display: "block",
                     opacity: elementStyle.text ? "1" : "0.7",
-                    resize: "none",
-                    overflow: "auto",
+                    resize: "none", // Empêche le redimensionnement manuel
+                    overflow: "auto", // Permet le défilement si nécessaire
                     padding: "5px",
                     lineHeight: "1.2",
                     fontSize: calculateFontSize(
