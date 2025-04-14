@@ -1,9 +1,10 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, use } from "react";
 import { stringify, v4 as uuidv4 } from "uuid";
 import { PopoverPicker } from "./PopoverPicker";
+import { HexColorPicker } from "react-colorful";
 
-export default function MainLogigramme({ tool, onUuidChange }) {
+export default function MainLogigramme({ tool, onUuidChange, onChange }) {
   const [isDown, setMouseIsDown] = useState(false);
   const [style, setStyle] = useState({
     id: "",
@@ -17,6 +18,10 @@ export default function MainLogigramme({ tool, onUuidChange }) {
     border: "1px solid gray",
     transform: "",
   });
+
+  const [isOpen, setIsOpen] = useState(false);
+  const popover = useRef();
+
   const [elements, setElements] = useState([]);
   const [lines, setLines] = useState([]);
   const [uuid, setUuid] = useState("");
@@ -28,7 +33,7 @@ export default function MainLogigramme({ tool, onUuidChange }) {
   const [blockTop, setBlockTop] = useState(false);
 
   const [dotPosition, setDotPosition] = useState([0, 0]);
-  const [color, setColor] = useState("#eeee");
+  const [color, setColor] = useState("#ffffff");
   const [connectingMode, setConnectingMode] = useState(false);
   const [sourceElement, setSourceElement] = useState(null);
   const [sourceDot, setSourceDot] = useState(null);
@@ -54,6 +59,12 @@ export default function MainLogigramme({ tool, onUuidChange }) {
     }
   }, [uuid, onUuidChange]);
 
+  useEffect(() => {
+    if (color) {
+      
+      console.log("Color changed:", color);
+    }
+  }, [color]);
   // Ajoutez cet useEffect au début de votre composant
   useEffect(() => {
     // Redessiner toutes les connexions existantes au chargement
@@ -99,19 +110,19 @@ export default function MainLogigramme({ tool, onUuidChange }) {
     console.log(elements, "elements")
     // Convertir en chaîne JSON
     const jsonString = JSON.stringify(saveData);
-    
+
     // Créer un Blob avec le contenu JSON
     const blob = new Blob([jsonString], { type: 'application/json' });
-    
+
     // Créer un lien de téléchargement
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = "logigramme.json";
-    
+
     // Déclencher le téléchargement
     document.body.appendChild(link);
     link.click();
-    
+
     // Nettoyer
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
@@ -499,7 +510,7 @@ export default function MainLogigramme({ tool, onUuidChange }) {
                 Math.abs(targetPoint.x - sourcePoint.x),
                 Math.abs(targetPoint.y - sourcePoint.y)
               ) /
-                2 +
+              2 +
               50;
 
             let sourceControlX, sourceControlY, targetControlX, targetControlY;
@@ -871,7 +882,7 @@ export default function MainLogigramme({ tool, onUuidChange }) {
 
         // Make dots more interactive
         dot.addEventListener("mouseover", function () {
-          this.style.backgroundColor = dotHoverColor;
+
           setDotPosition([this.getAttribute("x"), this.getAttribute("y")]);
         });
 
@@ -972,7 +983,8 @@ export default function MainLogigramme({ tool, onUuidChange }) {
   const mouseIsDown = (e) => {
     if (tool.tool !== 0 && tool.tool < 6) {
       setMouseIsDown(true);
-
+setColor("#ffffff")
+console.log(color, "color4")
       // Générer un nouvel UUID pour cet élément
       const newId = uuidv4();
 
@@ -983,11 +995,11 @@ export default function MainLogigramme({ tool, onUuidChange }) {
         y: dotPosition[1],
         width: defaultDimensions.current.width,
         height: defaultDimensions.current.height,
-        bgColor: "white",
+        bgColor: "#ffffff",
         border: "1px solid gray",
         text: "",
       };
-
+console.log(newShape.bgColor, "newShape")
       // Appliquer le type de forme
       switch (tool.tool) {
         case 1: // Rectangle
@@ -1020,7 +1032,7 @@ export default function MainLogigramme({ tool, onUuidChange }) {
             type: 4,
             width: newShape.width,
             height: newShape.height,
-            bgColor: "none",
+            background: generateSvgBackgroundType4(color),
             border: "none",
           };
           break;
@@ -1030,7 +1042,7 @@ export default function MainLogigramme({ tool, onUuidChange }) {
             type: 5,
             width: newShape.width,
             height: newShape.height,
-            bgColor: "none",
+            background: generateSvgBackgroundType5(color),
             border: "none",
           };
           break;
@@ -1052,6 +1064,46 @@ export default function MainLogigramme({ tool, onUuidChange }) {
       setUuid(newId);
     }
   };
+
+  function formatHexColor(color) {
+    // Si le code ne commence pas par "#", on le retourne inchangé
+    if (!color.startsWith("#")) return color;
+  
+    // Si le code est en format raccourci "#RGB" ou "#RGBA"
+    if (color.length === 4 || color.length === 5) {
+      // On utilise les trois premières lettres (r, g, b) pour construire le code complet
+      const r = color[1];
+      const g = color[2];
+      const b = color[3];
+      return `#${r}${r}${g}${g}${b}${b}`;
+    }
+    // Sinon, on suppose que le code est déjà au format complet
+    return color;
+  }
+  
+  const generateSvgBackgroundType4 = (fillColor) => {
+    const validColor = formatHexColor(fillColor);
+    const svgString = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="2.9 2.9 23.2 23.8" preserveAspectRatio="none">
+        <path d="M7 3 Q6.5 3 6.3 3.4 L4 26 Q4 26.6 4.6 26.6 H21 Q21.5 26.6 21.7 26.2 L24 3.6 Q24.1 3 23.5 3 Z" fill="${validColor}" stroke="#333333" stroke-width="0.63" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+      </svg>
+    `;
+    return `url("data:image/svg+xml;utf8,${encodeURIComponent(svgString)}") center no-repeat`;
+  };
+  
+  const generateSvgBackgroundType5 = (fillColor) => {
+    const validColor = formatHexColor(fillColor);
+    console.log(validColor, "validColor")
+    const svgString = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="2.9 2.9 23.2 18.2" preserveAspectRatio="none">
+        <path d="M6 3 H23 L23 6 C23 6.55228 23.4477 7 24 7 H26 V18 C26 19.6568 24.6569 21 23 21 H6 C4.34315 21 3 19.6569 3 18 V6 C3 4.34315 4.34315 3 6 3 Z" fill="${validColor}" stroke="#333333" stroke-width="0.63" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+        <path d="M23 3V6C23 6.55228 23.4477 7 24 7H26L23 3Z" fill="#EEEEEE" stroke="#333333" stroke-width="0.63" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+      </svg>
+    `;
+    console.log(`url("data:image/svg+xml;utf8,${encodeURIComponent(svgString)}") center no-repeat`, "svgString");
+    return `url("data:image/svg+xml;utf8,${encodeURIComponent(svgString)}") center no-repeat`;
+  };
+  
 
   const findClosestElement = (referenceElement, elements) => {
     if (!elements.length || referenceElement == null) return null;
@@ -1213,18 +1265,25 @@ export default function MainLogigramme({ tool, onUuidChange }) {
   };
 
   const changeShapeColor = (newColor) => {
-    setElements((prevElements) => {
-      return prevElements.map((element) => {
+    // Met à jour la couleur générale dans l'état
+    setColor(newColor);
+  
+    setElements((prevElements) =>
+      prevElements.map((element) => {
         if (element.id === uuid) {
-          return {
-            ...element,
-            bgColor: newColor,
-          };
-        } else {
-          return element;
+          let updatedElement = { ...element, bgColor: newColor };
+          // Si l'élément est de type 4 ou 5, on génère un background personnalisé
+          if (element.type === 4) {
+            updatedElement.background = generateSvgBackgroundType4(newColor);
+          } else if (element.type === 5) {
+            console.log(newColor, "newColor2")
+            updatedElement.background = generateSvgBackgroundType5(newColor);
+          }
+          return updatedElement;
         }
-      });
-    });
+        return element;
+      })
+    );
   };
 
   const manageInput = () => {
@@ -1275,6 +1334,10 @@ export default function MainLogigramme({ tool, onUuidChange }) {
           100 +
           "px";
         shapeMenu.style.top = parseInt(element.style.top) - 45 + "px";
+        const colorPicker = document.getElementById("ddc");
+      const rect = colorPicker.getBoundingClientRect();
+      setTopValue(rect.top);
+      setLeftValue(rect.left);
       }
     }
   };
@@ -1359,17 +1422,17 @@ export default function MainLogigramme({ tool, onUuidChange }) {
     return Math.max(9, Math.min(baseSize, 20)) + "px";
   };
 
- 
+
   function importJsonFile(file) {
     const reader = new FileReader();
-    
+
     reader.onload = (event) => {
       try {
         // Parser directement le contenu JSON
         const parsedData = JSON.parse(event.target.result);
         console.log(parsedData.elements, "parsedData");
         // Mettre à jour l'état
-       
+
         setElements(parsedData.elements);
         setLines(parsedData.lines);
         console.log("Fichier importé avec succès");
@@ -1377,11 +1440,17 @@ export default function MainLogigramme({ tool, onUuidChange }) {
         console.error('Erreur de parsing JSON:', error);
       }
     };
-  
+
     // Lire le fichier comme texte
     reader.readAsText(file);
   }
-  
+  const [topValue, setTopValue] = useState(0);
+  const [leftValue, setLeftValue] = useState(0);
+  useEffect(() => {
+   
+  }, [isOpen]);
+
+
   return (
     <div style={{ flex: "auto" }}>
       <div
@@ -1404,15 +1473,26 @@ export default function MainLogigramme({ tool, onUuidChange }) {
           boxSizing: "border-box",
         }}
       >
-        <div onClick={() => [saveToJson(), console.log(elements)]}> <img src="icons/save.png" alt="Arrow" /></div>
-        <div>
-      <input 
-        type="file" 
-        onChange={(e) => importJsonFile(e.target.files[0])}
-      />
+        <div className="d-flex" onClick={() => [saveToJson(), console.log(elements)]}> <img src="icons/save.png" alt="Arrow" />
+          <div className="custom-file-input">
+            {/* Input file caché mais toujours fonctionnel */}
+            <input
+              type="file"
+              id="fileInput"
+              onChange={(e) => importJsonFile(e.target.files[0])}
+              style={{ display: 'none' }}
+            />
 
-   
-
+            {/* Logo qui servira de déclencheur */}
+            <label htmlFor="fileInput">
+              <img
+                src="icons/import.png"
+                alt="Importer un fichier"
+                className="upload-logo"
+                style={{ cursor: 'pointer', width: '40px', height: '40px' }}
+              />
+            </label>
+          </div>
         </div>
         <div
           ref={containerRef}
@@ -1534,18 +1614,18 @@ export default function MainLogigramme({ tool, onUuidChange }) {
             className="shapeMenu"
             onMouseOver={() => menu(uuid)}
             onMouseOut={() => {
-              document.querySelector(".shapeMenu").style.display = "none";
+              isOpen ? null : document.querySelector(".shapeMenu").style.display = "none";
             }}
           >
             <img src="/icons/policeIcon.png" onClick={() => manageInput()} />
-
-            <PopoverPicker
-              color={color}
-              onChange={(newColor) => {
-                setColor(newColor);
-                changeShapeColor(newColor);
-              }}
-            />
+            <div id="ddc">
+              <PopoverPicker
+                color={color}
+                isOpen={isOpen}             // Passe l'état au composant enfant
+                setIsOpen={setIsOpen}
+              />
+               
+            </div>
             <img onClick={() => deleteElement()} src="/icons/trash.png" />
           </div>
 
@@ -1556,10 +1636,14 @@ export default function MainLogigramme({ tool, onUuidChange }) {
               <div
                 onMouseUp={mouseIsUp}
                 onMouseOut={() => {
-                  document.querySelector(".shapeMenu").style.display = "none";
+                  [
+                   isOpen ? null : document.querySelector(".shapeMenu").style.display = "none"];
+                  //, setIsOpen(false)
                 }}
                 onMouseOver={() => {
-                  !isDown && tool.tool < 6 ? menu(elementStyle.id) : null;
+                  [
+                    !isDown && tool.tool < 6 ? menu(elementStyle.id) : null,
+                    setColor(elementStyle.bgColor)]
                 }}
                 id={elementStyle.id}
                 className="shape-elementy"
@@ -1573,7 +1657,9 @@ export default function MainLogigramme({ tool, onUuidChange }) {
                   height: `${elementStyle.height}px`,
                   borderRadius: elementStyle.radius,
                   border: elementStyle.border,
-                  backgroundColor: elementStyle.bgColor,
+                  background: elementStyle.type === 4 || elementStyle.type === 5 
+                  ? elementStyle.background 
+                  : elementStyle.bgColor,
                   transform: elementStyle.transform,
                   cursor: tool.tool === 0 ? "move" : "default",
                 }}
@@ -1597,13 +1683,12 @@ export default function MainLogigramme({ tool, onUuidChange }) {
                     transform:
                       "translate(-50%, -50%)" +
                       (elementStyle.transform
-                        ? ` ${
-                            elementStyle.transform.includes("rotate")
-                              ? "rotate(-45deg)"
-                              : elementStyle.transform.includes("skew")
-                              ? "skewX(15deg)"
-                              : ""
-                          }`
+                        ? ` ${elementStyle.transform.includes("rotate")
+                          ? "rotate(-45deg)"
+                          : elementStyle.transform.includes("skew")
+                            ? "skewX(15deg)"
+                            : ""
+                        }`
                         : ""),
                     textAlign: "center",
                     display: "block",
@@ -1625,6 +1710,14 @@ export default function MainLogigramme({ tool, onUuidChange }) {
             ))}
         </div>
       </div>
+      {isOpen && (
+        <div onMouseLeave={() => [document.querySelector(".shapeMenu").style.display = "none",setIsOpen(false)]} id="bbn" style={{ zIndex: "10", top: `${topValue + 40}px`, left: `${leftValue}px` }} className="popover" ref={popover} onMouseOver={() => console.log("over")}>
+          <HexColorPicker color={color}  onChange={(newColor) => { 
+    setColor(newColor); 
+    changeShapeColor(newColor);
+  }}  />
+        </div>
+      )}
     </div>
   );
 }
