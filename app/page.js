@@ -32,7 +32,7 @@ export default function Home() {
             </div>
 
             <div className="" onClick={() => [setTool({ tool: -1 })]}>
-              <img src="icons/cursor.png" alt="Cursor" />
+              <img src="icons/zoom.png" alt="Cursor" />
             </div>
 
             <div className="ms-auto" onClick={() => setTool({ tool: 1 })}>

@@ -90,37 +90,32 @@ export default function MainLogigramme({ tool, onUuidChange }) {
     }
   }, [tool]);
 
-  const saveToJson = () => {
-    const data = elements;
-
-    console.log(elements);
+  function saveToJson() {
+    // Créez un objet qui contient à la fois elements et lines
+    const saveData = {
+      elements: elements,
+      lines: lines
+    };
+    console.log(elements, "elements")
+    // Convertir en chaîne JSON
+    const jsonString = JSON.stringify(saveData);
     
-
-   // console.log(JSON.stringify(data["mm"]) )
-   const content = [JSON.stringify(data),lines]
-      
-   // Créer un Blob avec le contenu
-      const blob = new Blob([content], { type: 'text/plain' });
-      
-      // Créer un lien de téléchargement
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = "momo";
-      
-      // Déclencher le téléchargement
-      document.body.appendChild(link);
-      link.click();
-      
-      // Nettoyer
-      document.body.removeChild(link);
-      URL.revokeObjectURL(link.href);
+    // Créer un Blob avec le contenu JSON
+    const blob = new Blob([jsonString], { type: 'application/json' });
     
+    // Créer un lien de téléchargement
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = "logigramme.json";
     
-    // Utilisation
-    saveTextFile('Contenu du fichier', 'mon-fichier.json');
-  };
-
-
+    // Déclencher le téléchargement
+    document.body.appendChild(link);
+    link.click();
+    
+    // Nettoyer
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+  }
 
   // Effet pour mettre à jour les SVG lorsque les éléments ou les lignes changent
   useEffect(() => {
@@ -1364,35 +1359,27 @@ export default function MainLogigramme({ tool, onUuidChange }) {
     return Math.max(9, Math.min(baseSize, 20)) + "px";
   };
 
-  const [jsonData, setJsonData ] = useState()
+ 
   function importJsonFile(file) {
-    const openFile = new Promise((resolve, reject) => {
-      const reader = new FileReader();
-
-      reader.onload = (event) => {
-        
-        try {
-          // Parser le contenu JSON
-          setJsonData(JSON.parse(event.target.result))
-          
-          resolve(jsonData);
-         
-         
-        } catch (error) {
-          reject(new Error('Erreur de parsing JSON'));
-        }
-      };
-  
-      // Lire le fichier comme texte
-      reader.readAsText(file);
-    } );
-    openFile.then(() => {
-console.log(lines, "ff")
-        setElements(jsonData)
-
-    })
-
+    const reader = new FileReader();
     
+    reader.onload = (event) => {
+      try {
+        // Parser directement le contenu JSON
+        const parsedData = JSON.parse(event.target.result);
+        console.log(parsedData.elements, "parsedData");
+        // Mettre à jour l'état
+       
+        setElements(parsedData.elements);
+        setLines(parsedData.lines);
+        console.log("Fichier importé avec succès");
+      } catch (error) {
+        console.error('Erreur de parsing JSON:', error);
+      }
+    };
+  
+    // Lire le fichier comme texte
+    reader.readAsText(file);
   }
   
   return (
@@ -1417,8 +1404,7 @@ console.log(lines, "ff")
           boxSizing: "border-box",
         }}
       >
-        <div onClick={() => [saveToJson(), console.log(elements)]}>save</div>
-       
+        <div onClick={() => [saveToJson(), console.log(elements)]}> <img src="icons/save.png" alt="Arrow" /></div>
         <div>
       <input 
         type="file" 
