@@ -983,24 +983,36 @@ export default function MainLogigramme({ tool, onUuidChange, onChange }) {
   const mouseIsDown = (e) => {
     if (tool.tool !== 0 && tool.tool < 6) {
       setMouseIsDown(true);
-setColor("#ffffff")
-console.log(color, "color4")
-      // Générer un nouvel UUID pour cet élément
+  
+      // Generate a new UUID for this element
       const newId = uuidv4();
-
-      // Définir une forme avec dimensions par défaut
+  
+      // Get initial position from dot
+      let initialX = parseInt(dotPosition[0]);
+      let initialY = parseInt(dotPosition[1]);
+  
+      // Check for element collisions at this position
+      const hasCollision = checkCollision(initialX, initialY);
+      if (hasCollision) {
+        // Find a new position nearby that doesn't have collisions
+        const newPosition = findEmptyPosition(initialX, initialY);
+        initialX = newPosition.x;
+        initialY = newPosition.y;
+      }
+  
+      // Define a shape with default dimensions
       let newShape = {
         id: newId,
-        x: dotPosition[0],
-        y: dotPosition[1],
+        x: initialX,
+        y: initialY,
         width: defaultDimensions.current.width,
         height: defaultDimensions.current.height,
         bgColor: "#ffffff",
         border: "1px solid gray",
         text: "",
       };
-console.log(newShape.bgColor, "newShape")
-      // Appliquer le type de forme
+  
+      // Apply the shape type
       switch (tool.tool) {
         case 1: // Rectangle
           newShape = {
@@ -1010,7 +1022,7 @@ console.log(newShape.bgColor, "newShape")
             transform: "",
           };
           break;
-        case 2: // Cercle
+        case 2: // Circle
           newShape = {
             ...newShape,
             type: 2,
@@ -1018,7 +1030,7 @@ console.log(newShape.bgColor, "newShape")
             transform: "",
           };
           break;
-        case 3: // Polygone/diamant
+        case 3: // Polygon/diamond
           newShape = {
             ...newShape,
             type: 3,
@@ -1026,23 +1038,23 @@ console.log(newShape.bgColor, "newShape")
             transform: "rotate(45deg)",
           };
           break;
-        case 4: // Parallélogramme
+        case 4: // Parallelogram
           newShape = {
             ...newShape,
             type: 4,
             width: newShape.width,
             height: newShape.height,
-            background: generateSvgBackgroundType4(color),
+            background: generateSvgBackgroundType4("#ffffff"),
             border: "none",
           };
           break;
-        case 5: // Autre forme
+        case 5: // Other shape
           newShape = {
             ...newShape,
             type: 5,
             width: newShape.width,
             height: newShape.height,
-            background: generateSvgBackgroundType5(color),
+            background: generateSvgBackgroundType5("#ffffff"),
             border: "none",
           };
           break;
@@ -1053,20 +1065,115 @@ console.log(newShape.bgColor, "newShape")
           };
           break;
       }
-
-      // Mettre à jour le style actuel
+  
+      // Update the current style
       setStyle(newShape);
-
-      // Ajouter l'élément au tableau
+  
+      // Add the element to the array
       setElements((prevElements) => [...prevElements, newShape]);
-
-      // Stocker l'UUID pour le dimensionnement
+  
+      // Store the UUID for sizing
       setUuid(newId);
     }
+  };
+  
+  // Function to check if a position has a collision with existing elements
+  const checkCollision = (x, y) => {
+    // Check overlap with a small buffer zone
+    const buffer = 10; // Buffer distance in pixels
+    
+    return elements.some(element => {
+      // Calculate element bounds with buffer
+      const elementLeft = parseInt(element.x) - buffer;
+      const elementRight = parseInt(element.x) + parseInt(element.width) + buffer;
+      const elementTop = parseInt(element.y) - buffer;
+      const elementBottom = parseInt(element.y) + parseInt(element.height) + buffer;
+      
+      // Check if the point (x, y) falls within these bounds
+      // We also check if the new element would overlap by taking its dimensions into account
+      const newElementRight = x + defaultDimensions.current.width;
+      const newElementBottom = y + defaultDimensions.current.height;
+      
+      return (
+        (x >= elementLeft && x <= elementRight || 
+         newElementRight >= elementLeft && newElementRight <= elementRight ||
+         x <= elementLeft && newElementRight >= elementRight) &&
+        (y >= elementTop && y <= elementBottom || 
+         newElementBottom >= elementTop && newElementBottom <= elementBottom ||
+         y <= elementTop && newElementBottom >= elementBottom)
+      );
+    });
+  };
+  
+  // Function to find an empty position nearby
+  const findEmptyPosition = (startX, startY) => {
+    // Grid spacing - try to align with the dot grid
+    const spacing = 25;
+    
+    // Try positions in a spiral pattern outward from the start point
+    // This helps to find the nearest available position
+    let layer = 1;
+    let position = { x: startX, y: startY };
+    
+    while (layer < 20) { // Limit search to prevent infinite loop
+      // Try positions in concentric squares around the initial point
+      
+      // Top edge of the square
+      for (let offsetX = -layer; offsetX <= layer; offsetX++) {
+        position = { 
+          x: startX + offsetX * spacing, 
+          y: startY - layer * spacing 
+        };
+        if (!checkCollision(position.x, position.y)) {
+          return position;
+        }
+      }
+      
+      // Right edge of the square
+      for (let offsetY = -layer + 1; offsetY <= layer; offsetY++) {
+        position = { 
+          x: startX + layer * spacing, 
+          y: startY + offsetY * spacing 
+        };
+        if (!checkCollision(position.x, position.y)) {
+          return position;
+        }
+      }
+      
+      // Bottom edge of the square
+      for (let offsetX = layer - 1; offsetX >= -layer; offsetX--) {
+        position = { 
+          x: startX + offsetX * spacing, 
+          y: startY + layer * spacing 
+        };
+        if (!checkCollision(position.x, position.y)) {
+          return position;
+        }
+      }
+      
+      // Left edge of the square
+      for (let offsetY = layer - 1; offsetY >= -layer + 1; offsetY--) {
+        position = { 
+          x: startX - layer * spacing, 
+          y: startY + offsetY * spacing 
+        };
+        if (!checkCollision(position.x, position.y)) {
+          return position;
+        }
+      }
+      
+      // Move to the next layer outward
+      layer++;
+    }
+    
+    // If no position found after all iterations, return a position far away
+    // This is a fallback that should rarely happen
+    return { x: startX + 200, y: startY + 200 };
   };
 
   function formatHexColor(color) {
     // Si le code ne commence pas par "#", on le retourne inchangé
+    console.log(color, "coloraa")
     if (!color.startsWith("#")) return color;
   
     // Si le code est en format raccourci "#RGB" ou "#RGBA"
@@ -1080,6 +1187,7 @@ console.log(newShape.bgColor, "newShape")
     // Sinon, on suppose que le code est déjà au format complet
     return color;
   }
+  
   
   const generateSvgBackgroundType4 = (fillColor) => {
     const validColor = formatHexColor(fillColor);
@@ -1095,10 +1203,26 @@ console.log(newShape.bgColor, "newShape")
     const validColor = formatHexColor(fillColor);
     console.log(validColor, "validColor")
     const svgString = `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="2.9 2.9 23.2 18.2" preserveAspectRatio="none">
-        <path d="M6 3 H23 L23 6 C23 6.55228 23.4477 7 24 7 H26 V18 C26 19.6568 24.6569 21 23 21 H6 C4.34315 21 3 19.6569 3 18 V6 C3 4.34315 4.34315 3 6 3 Z" fill="${validColor}" stroke="#333333" stroke-width="0.63" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
-        <path d="M23 3V6C23 6.55228 23.4477 7 24 7H26L23 3Z" fill="#EEEEEE" stroke="#333333" stroke-width="0.63" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
-      </svg>
+     <svg xmlns="http://www.w3.org/2000/svg" viewBox="2.9 2.9 23.2 23.8" preserveAspectRatio="none">
+  <!-- Main shape with rounded corners at the bottom only -->
+  <path d="M6 3 H23 V6 C23 6.55228 23.4477 7 24 7 H26 V23 C26 24.6569 24.6569 26 23 26.6 H6 C4.34315 26 3 24.6569 3 23 V6 C3 4.34315 4.34315 3 6 3 Z" 
+        fill="${validColor}" 
+        stroke="#333333" 
+        stroke-width="0.63" 
+        stroke-linecap="round" 
+        stroke-linejoin="round" 
+        vector-effect="non-scaling-stroke" />
+        
+  <!-- The folded corner effect at top right -->
+  <path d="M23 3 L23 6 C23 6.55228 23.4477 7 24 7 H26 L23 3 Z" 
+        fill="#f5f5f5" 
+        stroke="#333333" 
+        stroke-width="0.63" 
+        stroke-linecap="round" 
+        stroke-linejoin="round" 
+        vector-effect="non-scaling-stroke" />
+</svg>
+
     `;
     console.log(`url("data:image/svg+xml;utf8,${encodeURIComponent(svgString)}") center no-repeat`, "svgString");
     return `url("data:image/svg+xml;utf8,${encodeURIComponent(svgString)}") center no-repeat`;
@@ -1264,20 +1388,20 @@ console.log(newShape.bgColor, "newShape")
     }
   };
 
-  const changeShapeColor = (newColor) => {
+  const changeShapeColor = () => {
     // Met à jour la couleur générale dans l'état
-    setColor(newColor);
+    setColor(color);
   
     setElements((prevElements) =>
       prevElements.map((element) => {
         if (element.id === uuid) {
-          let updatedElement = { ...element, bgColor: newColor };
+          let updatedElement = { ...element, bgColor: color };
           // Si l'élément est de type 4 ou 5, on génère un background personnalisé
           if (element.type === 4) {
-            updatedElement.background = generateSvgBackgroundType4(newColor);
+            updatedElement.background = generateSvgBackgroundType4(color);
           } else if (element.type === 5) {
-            console.log(newColor, "newColor2")
-            updatedElement.background = generateSvgBackgroundType5(newColor);
+            console.log(color, "newColor2")
+            updatedElement.background = generateSvgBackgroundType5(color);
           }
           return updatedElement;
         }
@@ -1642,8 +1766,11 @@ console.log(newShape.bgColor, "newShape")
                 }}
                 onMouseOver={() => {
                   [
-                    !isDown && tool.tool < 6 ? menu(elementStyle.id) : null,
-                    setColor(elementStyle.bgColor)]
+                    !isDown && tool.tool < 6 ? [setColor(elementStyle.bgColor) , setTimeout(() => {menu(elementStyle.id)}, 50)] : null,
+                    ]
+                    // setTimeout(() => {
+                    //   setIsOpen(true);
+                    // }, 500);
                 }}
                 id={elementStyle.id}
                 className="shape-elementy"
@@ -1714,8 +1841,8 @@ console.log(newShape.bgColor, "newShape")
         <div onMouseLeave={() => [document.querySelector(".shapeMenu").style.display = "none",setIsOpen(false)]} id="bbn" style={{ zIndex: "10", top: `${topValue + 40}px`, left: `${leftValue}px` }} className="popover" ref={popover} onMouseOver={() => console.log("over")}>
           <HexColorPicker color={color}  onChange={(newColor) => { 
     setColor(newColor); 
-    changeShapeColor(newColor);
-  }}  />
+    
+  }} onMouseUp={() => changeShapeColor()}  />
         </div>
       )}
     </div>
