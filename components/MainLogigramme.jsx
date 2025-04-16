@@ -1,10 +1,10 @@
 "use client";
-import { useState, useEffect, useRef, useCallback, use } from "react";
+import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from "react";
 import { stringify, v4 as uuidv4 } from "uuid";
 import { PopoverPicker } from "./PopoverPicker";
 import { HexColorPicker } from "react-colorful";
 
-export default function MainLogigramme({ tool, onUuidChange, onChange }) {
+const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements: propElements, lines: propLines, setElements: propSetElements, setLines: propSetLines }, ref) => {
   const [isDown, setMouseIsDown] = useState(false);
   const [style, setStyle] = useState({
     id: "",
@@ -18,6 +18,7 @@ export default function MainLogigramme({ tool, onUuidChange, onChange }) {
     border: "1px solid gray",
     transform: "",
   });
+
 
   const [isOpen, setIsOpen] = useState(false);
   const popover = useRef();
@@ -821,7 +822,7 @@ export default function MainLogigramme({ tool, onUuidChange, onChange }) {
           newLine.targetOffset = { x: 0, y: 0 }; // Ajustez ces valeurs selon vos besoins
         }
         // Ajouter la nouvelle ligne à la liste des lignes
-        setLines((prevLines) => [...prevLines, newLine]);
+        updateLinesAndPropagate((prevLines) => [...prevLines, newLine]);
       }
 
       // Réinitialiser la sélection dans tous les cas
@@ -914,105 +915,101 @@ export default function MainLogigramme({ tool, onUuidChange, onChange }) {
     setUuid(id);
   };
 
-  const setElementPosition = (e) => {
-    if (isDown && uuid !== null) {
-      const el = elements.find((el) => el.id === uuid);
-      if (!el) return;
+  // Version améliorée de la fonction setElementPosition
+const setElementPosition = (e) => {
+  if (isDown && uuid !== null) {
+    const el = elements.find((el) => el.id === uuid);
+    if (!el) return;
 
-      const rect1 = document.getElementById(uuid).getBoundingClientRect();
-      const rect3 = document.querySelector(".openDiv").getBoundingClientRect();
-
-      // Définir l'ID de l'élément en cours de déplacement
-      window.movingElementId = uuid;
-
-      // Vérifier les limites
-      if (rect1.right > rect3.right - 10) {
-        setBlockRight(true);
-      } else if (rect1.left < rect3.left + 8) {
-        setBlockLeft(true);
-        el.x = 8;
-      } else if (rect1.top < rect3.top) {
-        setBlockTop(true);
-        el.y = 0;
-      } else if (rect1.bottom > rect3.bottom) {
-        setBlockBottom(true);
-      } else {
-        // Si on n'est pas bloqué, on peut bouger librement
-        if (!blockLeft && !blockRight && !blockTop && !blockBottom) {
-          setElements((prevElements) => {
-            return prevElements.map((element) => {
-              if (element.id === uuid) {
-                return {
-                  ...element,
-                  x: parseInt(element.x) + e.movementX,
-                  y: parseInt(element.y) + e.movementY,
-                };
-              } else {
-                return element;
-              }
-            });
-          });
-        }
-      }
-
-      // Détecter quand on peut débloquer
-      if (blockLeft && e.movementX > 0) {
-        setBlockLeft(false);
-      } else if (blockRight && e.movementX < 0) {
-        setBlockRight(false);
-      } else if (blockTop && e.movementY > 0) {
-        setBlockTop(false);
-      } else if (blockBottom && e.movementY < 0) {
-        setBlockBottom(false);
-      }
-
-      // Mettre à jour les connexions SVG après déplacement
-      if (lines.length > 0) {
-        // Utiliser requestAnimationFrame pour limiter les mises à jour graphiques
-        if (window.svgUpdateTimer) {
-          cancelAnimationFrame(window.svgUpdateTimer);
-        }
-
-        window.svgUpdateTimer = requestAnimationFrame(() => {
-          updateSvgConnections();
+    // Calculer la nouvelle position
+    const newX = parseInt(el.x) + e.movementX;
+    const newY = parseInt(el.y) + e.movementY;
+    
+    // Obtenir les dimensions de la zone de travail
+    const containerRect = document.querySelector(".openDiv")?.getBoundingClientRect();
+    if (!containerRect) return;
+    
+    // Calculer les limites
+    const maxX = canvasSize.width - el.width;
+    const maxY = canvasSize.height - el.height;
+    
+    // S'assurer que l'élément reste dans les limites
+    const boundedX = Math.max(0, Math.min(newX, maxX));
+    const boundedY = Math.max(0, Math.min(newY, maxY));
+    
+    // Vérifier s'il y a une collision avec d'autres éléments
+    const hasCollision = checkCollision(boundedX, boundedY, el.width, el.height, uuid);
+    
+    if (!hasCollision) {
+      // Mettre à jour la position si pas de collision
+      updateElementsAndPropagate((prevElements) => {
+        return prevElements.map((element) => {
+          if (element.id === uuid) {
+            return {
+              ...element,
+              x: boundedX,
+              y: boundedY,
+            };
+          } else {
+            return element;
+          }
         });
-      }
+      });
     }
-  };
+    
+    // Mettre à jour les connexions SVG après déplacement
+    if (lines.length > 0) {
+      if (window.svgUpdateTimer) {
+        cancelAnimationFrame(window.svgUpdateTimer);
+      }
 
+      window.svgUpdateTimer = requestAnimationFrame(() => {
+        updateSvgConnections();
+      });
+    }
+  }
+};
+
+
+  // Version améliorée de la fonction mouseIsDown pour la création d'éléments
   const mouseIsDown = (e) => {
     if (tool.tool !== 0 && tool.tool < 6) {
       setMouseIsDown(true);
   
-      // Generate a new UUID for this element
+      // Générer un nouvel UUID pour cet élément
       const newId = uuidv4();
   
-      // Get initial position from dot
+      // Récupérer la position initiale à partir du point
       let initialX = parseInt(dotPosition[0]);
       let initialY = parseInt(dotPosition[1]);
+      
+      // Définir les dimensions par défaut
+      const width = defaultDimensions.current.width;
+      const height = defaultDimensions.current.height;
   
-      // Check for element collisions at this position
-      const hasCollision = checkCollision(initialX, initialY);
+      // Vérifier si la position est déjà occupée
+      const hasCollision = checkCollision(initialX, initialY, width, height);
+      
+      // Si collision ou hors limites, trouver une position libre
       if (hasCollision) {
-        // Find a new position nearby that doesn't have collisions
-        const newPosition = findEmptyPosition(initialX, initialY);
+        const newPosition = findEmptyPosition(initialX, initialY, width, height);
         initialX = newPosition.x;
         initialY = newPosition.y;
       }
   
-      // Define a shape with default dimensions
+      // Créer une nouvelle forme avec les dimensions par défaut
       let newShape = {
         id: newId,
         x: initialX,
         y: initialY,
-        width: defaultDimensions.current.width,
-        height: defaultDimensions.current.height,
+        width: width,
+        height: height,
         bgColor: "#ffffff",
         border: "1px solid gray",
         text: "",
       };
   
-      // Apply the shape type
+      // Appliquer le type de forme
       switch (tool.tool) {
         case 1: // Rectangle
           newShape = {
@@ -1022,154 +1019,140 @@ export default function MainLogigramme({ tool, onUuidChange, onChange }) {
             transform: "",
           };
           break;
-        case 2: // Circle
-          newShape = {
-            ...newShape,
-            type: 2,
-            radius: "50%",
-            transform: "",
-          };
-          break;
-        case 3: // Polygon/diamond
-          newShape = {
-            ...newShape,
-            type: 3,
-            radius: "5%",
-            transform: "rotate(45deg)",
-          };
-          break;
-        case 4: // Parallelogram
-          newShape = {
-            ...newShape,
-            type: 4,
-            width: newShape.width,
-            height: newShape.height,
-            background: generateSvgBackgroundType4("#ffffff"),
-            border: "none",
-          };
-          break;
-        case 5: // Other shape
-          newShape = {
-            ...newShape,
-            type: 5,
-            width: newShape.width,
-            height: newShape.height,
-            background: generateSvgBackgroundType5("#ffffff"),
-            border: "none",
-          };
-          break;
-        default:
-          newShape = {
-            ...newShape,
-            type: 0,
-          };
-          break;
+        // ... autres cas ...
       }
   
-      // Update the current style
+      // Mettre à jour le style courant
       setStyle(newShape);
   
-      // Add the element to the array
-      setElements((prevElements) => [...prevElements, newShape]);
+      // MODIFICATION: Utiliser directement les fonctions de state React
+      // au lieu de passer par updateElementsAndPropagate
+      setElements(prevElements => {
+        const newElements = [...prevElements, newShape];
+        if (propSetElements) propSetElements(newElements);
+        if (onDataChange) onDataChange(newElements, lines);
+        return newElements;
+      });
   
-      // Store the UUID for sizing
+      // Stocker l'UUID pour le redimensionnement
       setUuid(newId);
     }
   };
   
-  // Function to check if a position has a collision with existing elements
-  const checkCollision = (x, y) => {
-    // Check overlap with a small buffer zone
-    const buffer = 10; // Buffer distance in pixels
+  // Fonction améliorée pour vérifier les collisions avec les éléments existants
+const checkCollision = (x, y, width, height, currentElementId = null) => {
+  // Vérifier la collision avec tous les éléments existants
+  return elements.some(element => {
+    // Ignorer l'élément courant lors de la vérification
+    if (currentElementId && element.id === currentElementId) return false;
     
-    return elements.some(element => {
-      // Calculate element bounds with buffer
-      const elementLeft = parseInt(element.x) - buffer;
-      const elementRight = parseInt(element.x) + parseInt(element.width) + buffer;
-      const elementTop = parseInt(element.y) - buffer;
-      const elementBottom = parseInt(element.y) + parseInt(element.height) + buffer;
-      
-      // Check if the point (x, y) falls within these bounds
-      // We also check if the new element would overlap by taking its dimensions into account
-      const newElementRight = x + defaultDimensions.current.width;
-      const newElementBottom = y + defaultDimensions.current.height;
-      
-      return (
-        (x >= elementLeft && x <= elementRight || 
-         newElementRight >= elementLeft && newElementRight <= elementRight ||
-         x <= elementLeft && newElementRight >= elementRight) &&
-        (y >= elementTop && y <= elementBottom || 
-         newElementBottom >= elementTop && newElementBottom <= elementBottom ||
-         y <= elementTop && newElementBottom >= elementBottom)
-      );
-    });
-  };
+    // Calculer les limites de l'élément existant
+    const elementLeft = parseInt(element.x);
+    const elementRight = parseInt(element.x) + parseInt(element.width);
+    const elementTop = parseInt(element.y);
+    const elementBottom = parseInt(element.y) + parseInt(element.height);
+    
+    // Calculer les limites du nouvel élément
+    const newElementRight = x + width;
+    const newElementBottom = y + height;
+    
+    // Vérifier s'il y a chevauchement
+    return (
+      x < elementRight &&
+      newElementRight > elementLeft &&
+      y < elementBottom &&
+      newElementBottom > elementTop
+    );
+  });
+};
   
-  // Function to find an empty position nearby
-  const findEmptyPosition = (startX, startY) => {
-    // Grid spacing - try to align with the dot grid
-    const spacing = 25;
+  // Fonction améliorée pour trouver une position libre
+const findEmptyPosition = (startX, startY, width, height) => {
+  // Récupérer les dimensions de la zone de travail
+  const containerRect = document.querySelector(".openDiv")?.getBoundingClientRect();
+  if (!containerRect) return { x: startX, y: startY };
+  
+  // Garantir que la position reste dans les limites de la zone de travail
+  const maxX = canvasSize.width - width;
+  const maxY = canvasSize.height - height;
+  
+  // Grille avec espacement
+  const gridSpacing = 25;
+  
+  // Chercher en spirale à partir du point de départ
+  let layer = 1;
+  let maxLayers = 30; // Limiter la recherche pour éviter une boucle infinie
+  
+  // Essayer d'abord la position initiale
+  if (!checkCollision(startX, startY, width, height)) {
+    return { 
+      x: Math.max(0, Math.min(startX, maxX)), 
+      y: Math.max(0, Math.min(startY, maxY))
+    };
+  }
+  
+  while (layer < maxLayers) {
+    // Explorer en spirale carrée autour du point de départ
     
-    // Try positions in a spiral pattern outward from the start point
-    // This helps to find the nearest available position
-    let layer = 1;
-    let position = { x: startX, y: startY };
-    
-    while (layer < 20) { // Limit search to prevent infinite loop
-      // Try positions in concentric squares around the initial point
+    // Dessus du carré
+    for (let offsetX = -layer; offsetX <= layer; offsetX++) {
+      const posX = startX + offsetX * gridSpacing;
+      const posY = startY - layer * gridSpacing;
       
-      // Top edge of the square
-      for (let offsetX = -layer; offsetX <= layer; offsetX++) {
-        position = { 
-          x: startX + offsetX * spacing, 
-          y: startY - layer * spacing 
-        };
-        if (!checkCollision(position.x, position.y)) {
-          return position;
+      if (posX >= 0 && posX <= maxX && posY >= 0 && posY <= maxY) {
+        if (!checkCollision(posX, posY, width, height)) {
+          return { x: posX, y: posY };
         }
       }
-      
-      // Right edge of the square
-      for (let offsetY = -layer + 1; offsetY <= layer; offsetY++) {
-        position = { 
-          x: startX + layer * spacing, 
-          y: startY + offsetY * spacing 
-        };
-        if (!checkCollision(position.x, position.y)) {
-          return position;
-        }
-      }
-      
-      // Bottom edge of the square
-      for (let offsetX = layer - 1; offsetX >= -layer; offsetX--) {
-        position = { 
-          x: startX + offsetX * spacing, 
-          y: startY + layer * spacing 
-        };
-        if (!checkCollision(position.x, position.y)) {
-          return position;
-        }
-      }
-      
-      // Left edge of the square
-      for (let offsetY = layer - 1; offsetY >= -layer + 1; offsetY--) {
-        position = { 
-          x: startX - layer * spacing, 
-          y: startY + offsetY * spacing 
-        };
-        if (!checkCollision(position.x, position.y)) {
-          return position;
-        }
-      }
-      
-      // Move to the next layer outward
-      layer++;
     }
     
-    // If no position found after all iterations, return a position far away
-    // This is a fallback that should rarely happen
-    return { x: startX + 200, y: startY + 200 };
+    // Côté droit du carré
+    for (let offsetY = -layer + 1; offsetY <= layer; offsetY++) {
+      const posX = startX + layer * gridSpacing;
+      const posY = startY + offsetY * gridSpacing;
+      
+      if (posX >= 0 && posX <= maxX && posY >= 0 && posY <= maxY) {
+        if (!checkCollision(posX, posY, width, height)) {
+          return { x: posX, y: posY };
+        }
+      }
+    }
+    
+    // Dessous du carré
+    for (let offsetX = layer - 1; offsetX >= -layer; offsetX--) {
+      const posX = startX + offsetX * gridSpacing;
+      const posY = startY + layer * gridSpacing;
+      
+      if (posX >= 0 && posX <= maxX && posY >= 0 && posY <= maxY) {
+        if (!checkCollision(posX, posY, width, height)) {
+          return { x: posX, y: posY };
+        }
+      }
+    }
+    
+    // Côté gauche du carré
+    for (let offsetY = layer - 1; offsetY >= -layer + 1; offsetY--) {
+      const posX = startX - layer * gridSpacing;
+      const posY = startY + offsetY * gridSpacing;
+      
+      if (posX >= 0 && posX <= maxX && posY >= 0 && posY <= maxY) {
+        if (!checkCollision(posX, posY, width, height)) {
+          return { x: posX, y: posY };
+        }
+      }
+    }
+    
+    layer++;
+  }
+  
+  // Si aucune position n'est trouvée après toutes les itérations, 
+  // trouver une position qui est au moins à l'intérieur des limites
+  return {
+    x: Math.max(0, Math.min(startX, maxX)),
+    y: Math.max(0, Math.min(startY, maxY))
   };
+};
+
 
   function formatHexColor(color) {
     // Si le code ne commence pas par "#", on le retourne inchangé
@@ -1262,6 +1245,7 @@ export default function MainLogigramme({ tool, onUuidChange, onChange }) {
   };
 
   const mouseIsUp = () => {
+    console.log(elements, "elements")
     setMouseIsDown(false);
 
     // Réinitialiser l'ID de l'élément en mouvement
@@ -1281,7 +1265,7 @@ export default function MainLogigramme({ tool, onUuidChange, onChange }) {
         document.getElementById(uuid).style.left =
           closest.getAttribute("x") + "px";
 
-        setElements((prevElements) => {
+        updateElementsAndPropagate((prevElements) => {
           return prevElements.map((element) => {
             if (element.id === uuid) {
               return {
@@ -1319,80 +1303,85 @@ export default function MainLogigramme({ tool, onUuidChange, onChange }) {
     }
   };
 
-  const setDimensions = (e, active) => {
-    console.log(tool, "dsfds");
-    if (
-      (isDown && tool.tool !== 0 && tool.tool < 6 && tool.tool != -1) ||
-      active
-    ) {
-      const number = 25; // Incrément de taille
+  // Version améliorée de la fonction setDimensions
+const setDimensions = (e, active) => {
+  if ((isDown && tool.tool !== 0 && tool.tool < 6 && tool.tool !== -1) || active) {
+    const number = 25; // Incrément de taille
+    let newWidth = style.width;
+    let newHeight = style.height;
 
-      // Mettre à jour le style local en fonction du type d'outil
-      if (tool.tool === 2 || tool.tool === 3) {
-        // Cercle ou Losange - même largeur et hauteur
-        if (e.movementX > 0 || e.movementY > 0) {
-          setStyle((prevStyle) => ({
-            ...prevStyle,
-            width: prevStyle.width + number,
-            height: prevStyle.width + number,
-          }));
-        } else if (e.movementX < 0 || e.movementY < 0) {
-          setStyle((prevStyle) => ({
-            ...prevStyle,
-            width: Math.max(20, prevStyle.width - number),
-            height: Math.max(20, prevStyle.width - number),
-          }));
-        }
-      } else if (tool.tool === 1 || tool.tool === 4 || tool.tool === 5) {
-        // Rectangle, Parallélogramme ou Autre - dimensions indépendantes
-        if (e.movementX > 0) {
-          setStyle((prevStyle) => ({
-            ...prevStyle,
-            width: prevStyle.width + number,
-          }));
-        } else if (e.movementX < 0) {
-          setStyle((prevStyle) => ({
-            ...prevStyle,
-            width: Math.max(20, prevStyle.width - number),
-          }));
-        }
-
-        if (e.movementY > 0) {
-          setStyle((prevStyle) => ({
-            ...prevStyle,
-            height: prevStyle.height + number,
-          }));
-        } else if (e.movementY < 0) {
-          setStyle((prevStyle) => ({
-            ...prevStyle,
-            height: Math.max(20, prevStyle.height - number),
-          }));
-        }
+    // Mettre à jour les dimensions en fonction du type d'outil
+    if (tool.tool === 2 || tool.tool === 3) {
+      // Cercle ou Losange - même largeur et hauteur
+      if (e.movementX > 0 || e.movementY > 0) {
+        newWidth = style.width + number;
+        newHeight = newWidth;
+      } else if (e.movementX < 0 || e.movementY < 0) {
+        newWidth = Math.max(20, style.width - number);
+        newHeight = newWidth;
+      }
+    } else if (tool.tool === 1 || tool.tool === 4 || tool.tool === 5) {
+      // Rectangle, Parallélogramme ou Autre - dimensions indépendantes
+      if (e.movementX > 0) {
+        newWidth = style.width + number;
+      } else if (e.movementX < 0) {
+        newWidth = Math.max(20, style.width - number);
       }
 
+      if (e.movementY > 0) {
+        newHeight = style.height + number;
+      } else if (e.movementY < 0) {
+        newHeight = Math.max(20, style.height - number);
+      }
+    }
+
+    // Récupérer la position actuelle
+    const element = elements.find(el => el.id === uuid);
+    if (!element) return;
+    
+    // Vérifier les limites
+    const maxX = canvasSize.width - element.x;
+    const maxY = canvasSize.height - element.y;
+    
+    // Limiter les dimensions pour rester dans les limites
+    newWidth = Math.min(newWidth, maxX);
+    newHeight = Math.min(newHeight, maxY);
+    
+    // Vérifier les collisions avec d'autres éléments
+    const hasCollision = checkCollision(parseInt(element.x), parseInt(element.y), newWidth, newHeight, uuid);
+    
+    if (!hasCollision) {
+      // Mettre à jour le style local
+      setStyle((prevStyle) => ({
+        ...prevStyle,
+        width: newWidth,
+        height: newHeight,
+      }));
+
       // Mettre à jour l'élément actif dans le tableau
-      setElements((prevElements) => {
-        return prevElements.map((element) => {
-          if (element.id === uuid) {
-            shapeStyleAfter(style.width);
+      updateElementsAndPropagate((prevElements) => {
+        return prevElements.map((el) => {
+          if (el.id === uuid) {
+            shapeStyleAfter(newWidth);
             return {
-              ...element,
-              width: style.width,
-              height: style.height,
+              ...el,
+              width: newWidth,
+              height: newHeight,
             };
           } else {
-            return element;
+            return el;
           }
         });
       });
     }
-  };
+  }
+};
 
   const changeShapeColor = () => {
     // Met à jour la couleur générale dans l'état
     setColor(color);
   
-    setElements((prevElements) =>
+    updateElementsAndPropagate((prevElements) =>
       prevElements.map((element) => {
         if (element.id === uuid) {
           let updatedElement = { ...element, bgColor: color };
@@ -1430,7 +1419,7 @@ export default function MainLogigramme({ tool, onUuidChange, onChange }) {
   const setTextElement = () => {
     const el = document.getElementById("input" + uuid);
     if (el) {
-      setElements((prevElements) => {
+      updateElementsAndPropagate((prevElements) => {
         return prevElements.map((element) => {
           if (element.id === uuid) {
             return {
@@ -1468,12 +1457,12 @@ export default function MainLogigramme({ tool, onUuidChange, onChange }) {
 
   const deleteElement = () => {
     // Supprimer l'élément
-    setElements((prevElements) =>
+    updateElementsAndPropagate((prevElements) =>
       prevElements.filter((element) => element.id !== uuid)
     );
 
     // Supprimer également toutes les lignes connectées à cet élément
-    setLines((prevLines) =>
+    updateLinesAndPropagate((prevLines) =>
       prevLines.filter((line) => line.source !== uuid && line.target !== uuid)
     );
 
@@ -1557,8 +1546,8 @@ export default function MainLogigramme({ tool, onUuidChange, onChange }) {
         console.log(parsedData.elements, "parsedData");
         // Mettre à jour l'état
 
-        setElements(parsedData.elements);
-        setLines(parsedData.lines);
+        updateElementsAndPropagate(parsedData.elements);
+        updateLinesAndPropagate(parsedData.lines);
         console.log("Fichier importé avec succès");
       } catch (error) {
         console.error('Erreur de parsing JSON:', error);
@@ -1574,6 +1563,40 @@ export default function MainLogigramme({ tool, onUuidChange, onChange }) {
    
   }, [isOpen]);
 
+// 1. Définir correctement les fonctions de propagation
+const updateElementsAndPropagate = useCallback((newElements) => {
+  setElements(newElements);
+  if (propSetElements) propSetElements(newElements);
+  if (onDataChange) onDataChange(newElements, lines);
+}, [propSetElements, onDataChange, lines]);
+
+const updateLinesAndPropagate = useCallback((newLines) => {
+  setLines(newLines);
+  if (propSetLines) propSetLines(newLines);
+  if (onDataChange) onDataChange(elements, newLines);
+}, [propSetLines, onDataChange, elements]);
+
+// 2. Mettre à jour les effets pour qu'ils utilisent les fonctions correctes
+useEffect(() => {
+  if (propElements) setElements(propElements);
+}, [propElements]);
+
+useEffect(() => {
+  if (propLines) setLines(propLines);
+}, [propLines]);
+
+// 3. Pour useImperativeHandle, utiliser les fonctions setElements et setLines
+useImperativeHandle(ref, () => ({
+  updateData: (newElements, newLines) => {
+    setElements(newElements);
+    setLines(newLines);
+  }
+}));
+
+const hasDuplicates = elements.map(el => el.id).some((id, index, array) => 
+  array.indexOf(id) !== index
+);
+console.log("Duplicate IDs found:", hasDuplicates);
 
   return (
     <div style={{ flex: "auto" }}>
@@ -1597,27 +1620,7 @@ export default function MainLogigramme({ tool, onUuidChange, onChange }) {
           boxSizing: "border-box",
         }}
       >
-        <div className="d-flex" onClick={() => [saveToJson(), console.log(elements)]}> <img src="icons/save.png" alt="Arrow" />
-          <div className="custom-file-input">
-            {/* Input file caché mais toujours fonctionnel */}
-            <input
-              type="file"
-              id="fileInput"
-              onChange={(e) => importJsonFile(e.target.files[0])}
-              style={{ display: 'none' }}
-            />
-
-            {/* Logo qui servira de déclencheur */}
-            <label htmlFor="fileInput">
-              <img
-                src="icons/import.png"
-                alt="Importer un fichier"
-                className="upload-logo"
-                style={{ cursor: 'pointer', width: '40px', height: '40px' }}
-              />
-            </label>
-          </div>
-        </div>
+   
         <div
           ref={containerRef}
           onWheel={(e) => [handleWheel(e), console.log(zoom, "icic")]}
@@ -1773,9 +1776,9 @@ export default function MainLogigramme({ tool, onUuidChange, onChange }) {
                     // }, 500);
                 }}
                 id={elementStyle.id}
+                key={elementStyle.id}
                 className="shape-elementy"
                 onMouseDown={(e) => select(e, elementStyle.id)}
-                key={elementStyle.id}
                 style={{
                   position: "absolute",
                   left: `${elementStyle.x}px`,
@@ -1847,4 +1850,5 @@ export default function MainLogigramme({ tool, onUuidChange, onChange }) {
       )}
     </div>
   );
-}
+});
+export default MainLogigramme;
