@@ -5,87 +5,128 @@ import MainLogigramme from "../components/MainLogigramme.jsx";
 
 export default function Home() {
   const [tool, setTool] = useState({ tool: 0 });
-  const [uuid, setUuid] = useState();
+  const [uuid, setUuid] = useState("");
   
-  // Références aux données du diagramme
+  // References to diagram data
   const [elements, setElements] = useState([]);
   const [lines, setLines] = useState([]);
   
-  // Fonction callback pour recevoir uuid du composant enfant
+  // State to manage loading
+  const [isLoading, setIsLoading] = useState(true);
+  const [isComponentMounted, setIsComponentMounted] = useState(false);
+  
+  // Reference to access child component methods
+  const logigrammeRef = useRef(null);
+  
+  // Effect for initial loading
+  useEffect(() => {
+    // Set component as mounted
+    setIsComponentMounted(true);
+    
+    // Simulate loading time
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1500); // 1.5 seconds of loading
+    
+    return () => clearTimeout(timer);
+  }, []);
+  
+  // Callback function to receive UUID from child component
   const handleUuidChange = (newUuid) => {
-    console.log("UUID reçu du composant enfant:", newUuid);
+    console.log("UUID received from child component:", newUuid);
     setUuid(newUuid);
   };
   
-  // Fonction callback pour recevoir les mises à jour des éléments et lignes
+  // Callback function to receive element and line updates
   const handleDataChange = (newElements, newLines) => {
-    setElements(newElements);
-    setLines(newLines);
+    // Only update if component is mounted to prevent render-time updates
+    if (isComponentMounted) {
+      setElements(newElements);
+      setLines(newLines);
+    }
   };
   
-  // Fonction pour sauvegarder le diagramme en JSON
+  // Function to save diagram to JSON
   const saveToJson = () => {
-    // Créez un objet qui contient à la fois elements et lines
+    // Create an object containing both elements and lines
     const saveData = {
       elements: elements,
       lines: lines
     };
-    console.log(elements, "elements")
+    console.log(elements, "elements");
     
-    // Convertir en chaîne JSON
+    // Convert to JSON string
     const jsonString = JSON.stringify(saveData);
 
-    // Créer un Blob avec le contenu JSON
+    // Create a Blob with JSON content
     const blob = new Blob([jsonString], { type: 'application/json' });
 
-    // Créer un lien de téléchargement
+    // Create a download link
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = "logigramme.json";
 
-    // Déclencher le téléchargement
+    // Trigger download
     document.body.appendChild(link);
     link.click();
 
-    // Nettoyer
+    // Clean up
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
   };
   
-  // Fonction pour importer un fichier JSON
+  // Function to import a JSON file
   const importJsonFile = (file) => {
+    if (!file) return;
+    
+    // Show loading during import
+    setIsLoading(true);
+    
     const reader = new FileReader();
 
     reader.onload = (event) => {
       try {
-        // Parser directement le contenu JSON
+        // Parse JSON content
         const parsedData = JSON.parse(event.target.result);
         console.log(parsedData.elements, "parsedData");
         
-        // Mettre à jour l'état local
-        setElements(parsedData.elements);
-        setLines(parsedData.lines);
+        // Update local state
+        setElements(parsedData.elements || []);
+        setLines(parsedData.lines || []);
         
-        // Si vous avez une référence au composant enfant, vous pouvez mettre à jour ses données
+        // Update child component data if reference available
         if (logigrammeRef.current && logigrammeRef.current.updateData) {
           logigrammeRef.current.updateData(parsedData.elements, parsedData.lines);
         }
         
-        console.log("Fichier importé avec succès");
+        console.log("File imported successfully");
+        
+        // Hide loading when done
+        setTimeout(() => setIsLoading(false), 500);
       } catch (error) {
-        console.error('Erreur de parsing JSON:', error);
+        console.error('JSON parsing error:', error);
+        setIsLoading(false);
       }
     };
 
-    // Lire le fichier comme texte
+    // Read file as text
     reader.readAsText(file);
   };
-  
-  // Référence pour accéder aux méthodes du composant enfant
-  const logigrammeRef = useRef(null);
 
   return (
-    <div className="container-fluid position-relative">
+    <div className="container-fluid position-relative" id="exm" onMouseOver={() => {console.log(document.getElementById("exm").getBoundingClientRect().height, "exm")}}>
+      {/* Loading screen */}
+      {isLoading && (
+        <div className="loading-overlay">
+          <div className="spinner-container">
+            <div className="spinner-border text-primary" role="status">
+              <span className="visually-hidden">Loading...</span>
+            </div>
+            <p className="mt-2">Loading diagram...</p>
+          </div>
+        </div>
+      )}
+      
       <div className="row">
         <div className="mainMenu col-5 border bg-light rounded p-0 row position-absolute">
           <div className="d-flex text-light menu">
@@ -94,7 +135,7 @@ export default function Home() {
             </div>
 
             <div className="" onClick={() => setTool({ tool: -1 })}>
-              <img src="icons/zoom.png" alt="Cursor" />
+              <img src="icons/zoom.png" alt="Zoom" />
             </div>
 
             <div className="ms-auto" onClick={() => setTool({ tool: 1 })}>
@@ -123,7 +164,7 @@ export default function Home() {
               ••••
             </div>
             
-            {/* Boutons de sauvegarde et d'importation */}
+            {/* Save and import buttons */}
             <div className="ms-auto d-flex me-2" onClick={saveToJson}>
               <img src="icons/save.png" alt="Save" style={{ cursor: 'pointer' }} />
             </div>
@@ -131,13 +172,14 @@ export default function Home() {
               <input
                 type="file"
                 id="fileInput"
-                onChange={(e) => importJsonFile(e.target.files[0])}
+                onChange={(e) => e.target.files && e.target.files[0] ? importJsonFile(e.target.files[0]) : null}
                 style={{ display: 'none' }}
+                accept=".json"
               />
               <label htmlFor="fileInput">
                 <img
                   src="icons/import.png"
-                  alt="Importer un fichier"
+                  alt="Import file"
                   className="upload-logo"
                   style={{ cursor: 'pointer', width: '40px', height: '40px' }}
                 />
@@ -148,23 +190,26 @@ export default function Home() {
         <div 
           onMouseDown={() => {
             const elements = document.querySelectorAll(".shape-input");
-            if (elements.length != 0) {
+            if (elements.length !== 0) {
               elements.forEach((element) => {
-                element.style.zIndex = 1;
+                element.style.zIndex = "1";
               });
             }
           }}
         >
-          <MainLogigramme 
-            ref={logigrammeRef}
-            tool={tool} 
-            onUuidChange={handleUuidChange} 
-            onDataChange={handleDataChange}
-            elements={elements}
-            lines={lines}
-            setElements={setElements}
-            setLines={setLines}
-          />
+          {!isLoading && isComponentMounted && (
+            <MainLogigramme 
+              ref={logigrammeRef}
+              tool={tool} 
+              onUuidChange={handleUuidChange} 
+              onDataChange={handleDataChange}
+              elements={elements}
+              lines={lines}
+              setElements={setElements}
+              setLines={setLines}
+              onLoadComplete={() => setIsLoading(false)}
+            />
+          )}
         </div>
       </div>
     </div>
