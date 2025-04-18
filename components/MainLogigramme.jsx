@@ -1,10 +1,11 @@
 "use client";
 import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from "react";
-import { stringify, v4 as uuidv4 } from "uuid";
+import { v4 as uuidv4 } from "uuid";
 import { PopoverPicker } from "./PopoverPicker";
 import { HexColorPicker } from "react-colorful";
 
 const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements: propElements, lines: propLines, setElements: propSetElements, setLines: propSetLines, onLoadComplete }, ref) => {
+  // États principaux
   const [isDown, setMouseIsDown] = useState(false);
   const [style, setStyle] = useState({
     id: "",
@@ -19,45 +20,51 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
     transform: "",
   });
 
+  // États de chargement et d'initialisation
   const [isInternallyLoaded, setIsInternallyLoaded] = useState(false);
   const isInitialRender = useRef(true);
   const initializationComplete = useRef(false);
 
+  // États pour le sélecteur de couleur
   const [isOpen, setIsOpen] = useState(false);
   const popover = useRef();
+  const [topValue, setTopValue] = useState(0);
+  const [leftValue, setLeftValue] = useState(0);
+  const [color, setColor] = useState("#ffffff");
 
+  // États pour les éléments et connexions
   const [elements, setElements] = useState([]);
   const [lines, setLines] = useState([]);
   const [uuid, setUuid] = useState("");
-  const [svgConnections, setSvgConnections] = useState([]); // État pour les connexions SVG
+  const [svgConnections, setSvgConnections] = useState([]);
 
-  const [blockLeft, setBlockLeft] = useState(false);
-  const [blockRight, setBlockRight] = useState(false);
-  const [blockBottom, setBlockBottom] = useState(false);
-  const [blockTop, setBlockTop] = useState(false);
-
+  // États pour le placement des éléments
   const [dotPosition, setDotPosition] = useState([0, 0]);
-  const [color, setColor] = useState("#ffffff");
   const [connectingMode, setConnectingMode] = useState(false);
   const [sourceElement, setSourceElement] = useState(null);
   const [sourceDot, setSourceDot] = useState(null);
 
+  // Références
   const dotSelected = useRef(false);
   const defaultDimensions = useRef({ width: 103, height: 103 });
-
-  // Par ces refs :
   const sourceElementRef = useRef(null);
   const sourceSideRef = useRef(null);
   const sourceDotRef = useRef(null);
+  const containerRef = useRef(null);
+  const dotPatternCreationTimeout = useRef(null);
+  const svgConnectionsUpdateTimeout = useRef(null);
+  const lastDotGridUpdate = useRef(0);
 
-  const [canvasSize, setCanvasSize] = useState({
-    width: 5000, // Increased canvas size
-    height: 5000, // Increased canvas size
+  // Taille du canvas
+  const [canvasSize] = useState({
+    width: 5000,
+    height: 5000,
   });
 
-  const [zoom, setZoom] = useState(1);
-  const containerRef = useRef(null);
+  // État du zoom
+  const [nzoom, setNzoom] = useState("100%");
 
+  // Notification au parent quand le chargement est terminé
   useEffect(() => {
     if (isInternallyLoaded && !isInitialRender.current) {
       if (onLoadComplete) {
@@ -66,10 +73,9 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
     }
   }, [isInternallyLoaded, onLoadComplete]);
 
-  // Ajoutez cet useEffect au début de votre composant
-  // Configurer le composant
+  // Initialisation du composant
   useEffect(() => {
-    // Marquer comme n'étant plus le rendu initial après la première exécution de l'effet
+    // Marqué comme n'étant plus le rendu initial
     isInitialRender.current = false;
 
     // Tâches de chargement initial
@@ -78,7 +84,6 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
     // 1. Rendre les connexions s'il y en a
     if (lines.length > 0) {
       loadingTasks++;
-      console.log("Rendu initial des connexions");
       setTimeout(() => {
         updateSvgConnections();
         loadingTasks--;
@@ -106,7 +111,7 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
       initializationComplete.current = true;
     }
 
-    // Assurer que le chargement est marqué comme terminé après un délai
+    // Garantir que le chargement est marqué comme terminé après un délai
     const fallbackTimer = setTimeout(() => {
       if (!initializationComplete.current) {
         setIsInternallyLoaded(true);
@@ -117,43 +122,34 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
     return () => clearTimeout(fallbackTimer);
   }, []);
 
+  // Notifier le parent du changement d'UUID
   useEffect(() => {
     if (uuid) {
       onUuidChange(uuid);
     }
   }, [uuid, onUuidChange]);
 
+  // Dessiner les connexions existantes au chargement
   useEffect(() => {
-    if (color) {
-
-      console.log("Color changed:", color);
-    }
-  }, [color]);
-  // Ajoutez cet useEffect au début de votre composant
-  useEffect(() => {
-    // Redessiner toutes les connexions existantes au chargement
     if (lines.length > 0) {
-      console.log("Initial rendering of connections");
       setTimeout(() => {
         updateSvgConnections();
       }, 200);
     }
   }, []);
 
-  // Effet qui se déclenche quand la prop tool change
+  // Gérer les changements d'outil
   useEffect(() => {
-    console.log("L'outil a changé:", tool);
-
-    // Gestion de l'affichage des points de connexion
+    // Gestion des points de connexion
     if (tool.tool === 6 || tool.tool === 7 || tool.tool === 8) {
-      // Afficher les points de connexion pour tous les outils de connexion
+      // Afficher les points de connexion pour les outils de connexion
       setTimeout(() => {
         const shapes = document.querySelectorAll("[shape-type]");
         shapes.forEach((element) => {
           showConnectionPoints(element);
         });
         setConnectingMode(true);
-        updateSvgConnections(); // Mettre à jour les connexions SVG
+        updateSvgConnections();
       }, 100);
     } else {
       // Cacher les points de connexion
@@ -165,63 +161,51 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
     }
   }, [tool]);
 
-  function saveToJson() {
-    // Créez un objet qui contient à la fois elements et lines
-    const saveData = {
-      elements: elements,
-      lines: lines
-    };
-    console.log(elements, "elements")
-    // Convertir en chaîne JSON
-    const jsonString = JSON.stringify(saveData);
-
-    // Créer un Blob avec le contenu JSON
-    const blob = new Blob([jsonString], { type: 'application/json' });
-
-    // Créer un lien de téléchargement
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = "logigramme.json";
-
-    // Déclencher le téléchargement
-    document.body.appendChild(link);
-    link.click();
-
-    // Nettoyer
-    document.body.removeChild(link);
-    URL.revokeObjectURL(link.href);
-  }
-
-  // Effet pour mettre à jour les SVG lorsque les éléments ou les lignes changent
+  // Mettre à jour les connexions SVG lorsque les éléments ou lignes changent
   useEffect(() => {
     if (lines.length > 0) {
       updateSvgConnections();
     }
   }, [elements, lines]);
 
-  // Ajoutez un useEffect pour gérer les événements mouseup au niveau du document
+  // Gérer les événements mouseup au niveau du document
   useEffect(() => {
     const handleGlobalMouseUp = () => {
       if (isDown) {
         setMouseIsDown(false);
-        // Exécutez toute autre logique nécessaire ici
       }
     };
 
-    // Ajouter l'écouteur d'événements au document
     document.addEventListener("mouseup", handleGlobalMouseUp);
 
-    // Nettoyer l'écouteur d'événements lors du démontage du composant
     return () => {
       document.removeEventListener("mouseup", handleGlobalMouseUp);
     };
-  }, [isDown]); // Dépendance sur isDown pour éviter des problèmes de stale closure
+  }, [isDown]);
 
-  // Fonction pour créer et afficher les points de connexion en fonction du type de forme
+  // Fonction de sauvegarde en JSON
+  function saveToJson() {
+    const saveData = {
+      elements: elements,
+      lines: lines
+    };
+
+    const jsonString = JSON.stringify(saveData);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = "logigramme.json";
+
+    document.body.appendChild(link);
+    link.click();
+
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+  }
+
+  // Fonction pour afficher les points de connexion sur les éléments
   const showConnectionPoints = (element) => {
     if (!element) return;
-
-    console.log("Showing connection points for:", element.id);
 
     try {
       // Supprimer les points existants pour éviter les doublons
@@ -231,7 +215,7 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
       const shapeType = parseInt(element.getAttribute("shape-type"));
       const elementId = element.id;
 
-      // Déterminer le nombre et la position des points en fonction du type de forme
+      // Déterminer la position des points en fonction du type de forme
       let positions = [];
 
       if (shapeType === 2) {
@@ -263,7 +247,7 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
           },
         ];
       } else if (shapeType === 3) {
-        // Losange - 4 points (aux sommets du losange)
+        // Losange - 4 points (aux sommets)
         positions = [
           {
             side: "top-right",
@@ -271,21 +255,18 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
             right: "0",
             transform: "translate(50%, 0)",
           },
-
           {
             side: "bottom-right",
             bottom: "-10px",
             right: "0",
             transform: "translate(50%, 0)",
           },
-
           {
             side: "bottom-left",
             bottom: "-10px",
             left: "0",
             transform: "translate(-50%, 0)",
           },
-
           {
             side: "top-left",
             top: "-10px",
@@ -374,10 +355,9 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
           }
         });
 
-        // Ajouter les gestionnaires d'événements pour la connexion
+        // Gestionnaires d'événements
         dot.addEventListener("click", (e) => {
           e.stopPropagation();
-          console.log("Dot clicked:", elementId, pos.side);
           handleDotClick(elementId, dot, pos.side);
         });
 
@@ -387,7 +367,6 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
         });
 
         dot.addEventListener("mouseout", () => {
-          // Ne pas changer la couleur si c'est le point source sélectionné
           if (
             !(
               sourceElement === elementId &&
@@ -402,19 +381,14 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
 
         element.appendChild(dot);
       });
-
-      console.log("Connection points added:", positions.length);
     } catch (error) {
-      console.error("Error showing connection points:", error);
+      console.error("Erreur lors de l'affichage des points de connexion:", error);
     }
   };
 
-  // Fonction pour mettre à jour les connexions SVG
-  // Fonction updateSvgConnections robuste qui ne dépend plus des éléments DOM visibles pour les connexions
-
-  // Fonction updateSvgConnections mise à jour
+  // Mise à jour des connexions SVG
   const updateSvgConnections = useCallback(() => {
-    // Fonction utilitaire pour obtenir les coordonnées absolues d'un point de connexion
+    // Fonction utilitaire pour obtenir les coordonnées d'un point de connexion
     function getConnectionPoint(
       elementId,
       side,
@@ -429,33 +403,28 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
       let x = centerX;
       let y = centerY;
 
-      // Points de connexion pour les losanges (rotated 45°)
+      // Points pour les losanges (rotation 45°)
       if (shapeType === 3) {
-        // Pour les losanges, les coordonnées doivent tenir compte de la rotation de 45°
         switch (side) {
           case "top-right":
-            // Point droit du losange
             x = centerX + rect.width / 2;
             y = centerY;
             break;
           case "bottom-right":
-            // Point bas du losange
             x = centerX;
             y = centerY + rect.height / 2;
             break;
           case "bottom-left":
-            // Point gauche du losange
             x = centerX - rect.width / 2;
             y = centerY;
             break;
           case "top-left":
-            // Point haut du losange
             x = centerX;
             y = centerY - rect.height / 2;
             break;
         }
       } else {
-        // Points de connexion standard pour les autres formes
+        // Points standard pour les autres formes
         switch (side) {
           case "top":
             x = centerX;
@@ -496,12 +465,16 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
     }
 
     try {
+      // Annuler toute mise à jour planifiée
+      if (svgConnectionsUpdateTimeout.current) {
+        clearTimeout(svgConnectionsUpdateTimeout.current);
+      }
+
       if (!lines || lines.length === 0) {
         setSvgConnections([]);
         return;
       }
 
-      // Faire une copie des lignes
       const linesData = [...lines];
       const containerRect = document
         .querySelector(".openDiv")
@@ -515,15 +488,7 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
             const sourceElement = document.getElementById(line.source);
             const targetElement = document.getElementById(line.target);
 
-            if (!sourceElement || !targetElement) {
-              console.log(
-                "Élément non trouvé:",
-                line.source,
-                "ou",
-                line.target
-              );
-              return null;
-            }
+            if (!sourceElement || !targetElement) return null;
 
             // Récupérer les types de formes
             const sourceShapeType =
@@ -551,7 +516,7 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
               containerRect
             );
 
-            // Vérification supplémentaire
+            // Vérification de validité des points
             if (
               !sourcePoint ||
               !targetPoint ||
@@ -560,11 +525,6 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
               isNaN(targetPoint.x) ||
               isNaN(targetPoint.y)
             ) {
-              console.error(
-                "Points de connexion invalides:",
-                sourcePoint,
-                targetPoint
-              );
               return null;
             }
 
@@ -573,29 +533,28 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
               Math.min(
                 Math.abs(targetPoint.x - sourcePoint.x),
                 Math.abs(targetPoint.y - sourcePoint.y)
-              ) /
-              2 +
-              50;
+              ) / 2 + 50;
 
+            // Déterminer les points de contrôle selon le type de forme et le côté
             let sourceControlX, sourceControlY, targetControlX, targetControlY;
 
-            // Déterminer la direction du point de contrôle source
+            // Points de contrôle pour la source
             if (sourceShapeType === 3) {
-              // Points de contrôle spécifiques pour le losange
+              // Points de contrôle pour le losange
               switch (line.sourceSide) {
-                case "top-right": // Point droit
+                case "top-right":
                   sourceControlX = sourcePoint.x + controlDistance;
                   sourceControlY = sourcePoint.y;
                   break;
-                case "bottom-right": // Point bas
+                case "bottom-right":
                   sourceControlX = sourcePoint.x;
                   sourceControlY = sourcePoint.y + controlDistance;
                   break;
-                case "bottom-left": // Point gauche
+                case "bottom-left":
                   sourceControlX = sourcePoint.x - controlDistance;
                   sourceControlY = sourcePoint.y;
                   break;
-                case "top-left": // Point haut
+                case "top-left":
                   sourceControlX = sourcePoint.x;
                   sourceControlY = sourcePoint.y - controlDistance;
                   break;
@@ -604,10 +563,9 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
                   sourceControlY = sourcePoint.y;
               }
             } else if (sourceShapeType === 4) {
-              // Points de contrôle spécifiques pour le parallélogramme
-              // Calculer l'angle du skew (15 degrés)
+              // Points de contrôle pour le parallélogramme
               const skewAngle = Math.PI / 12; // 15 degrés en radians
-              console.log("fsq");
+
               switch (line.sourceSide) {
                 case "top":
                   sourceControlX = sourcePoint.x;
@@ -623,22 +581,6 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
                   break;
                 case "left":
                   sourceControlX = sourcePoint.x - controlDistance;
-                  sourceControlY = sourcePoint.y;
-                  break;
-                case "top-right":
-                  sourceControlX = sourcePoint.x;
-                  sourceControlY = sourcePoint.y;
-                  break;
-                case "bottom-right":
-                  sourceControlX = sourcePoint.x;
-                  sourceControlY = sourcePoint.y;
-                  break;
-                case "bottom-left":
-                  sourceControlX = sourcePoint.x;
-                  sourceControlY = sourcePoint.y;
-                  break;
-                case "top-left":
-                  sourceControlX = sourcePoint.x;
                   sourceControlY = sourcePoint.y;
                   break;
                 default:
@@ -686,23 +628,23 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
               }
             }
 
-            // Déterminer la direction du point de contrôle cible
+            // Points de contrôle pour la cible
             if (targetShapeType === 3) {
-              // Points de contrôle spécifiques pour le losange
+              // Points de contrôle pour le losange
               switch (line.targetSide) {
-                case "top-right": // Point droit
+                case "top-right":
                   targetControlX = targetPoint.x + controlDistance;
                   targetControlY = targetPoint.y;
                   break;
-                case "bottom-right": // Point bas
+                case "bottom-right":
                   targetControlX = targetPoint.x;
                   targetControlY = targetPoint.y + controlDistance;
                   break;
-                case "bottom-left": // Point gauche
+                case "bottom-left":
                   targetControlX = targetPoint.x - controlDistance;
                   targetControlY = targetPoint.y;
                   break;
-                case "top-left": // Point haut
+                case "top-left":
                   targetControlX = targetPoint.x;
                   targetControlY = targetPoint.y - controlDistance;
                   break;
@@ -711,8 +653,7 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
                   targetControlY = targetPoint.y;
               }
             } else if (targetShapeType === 4) {
-              // Points de contrôle spécifiques pour le parallélogramme
-              // Calculer l'angle du skew (15 degrés)
+              // Points de contrôle pour le parallélogramme
               const skewAngle = Math.PI / 12; // 15 degrés en radians
 
               switch (line.targetSide) {
@@ -733,28 +674,20 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
                   targetControlY = targetPoint.y;
                   break;
                 case "top-right":
-                  targetControlX =
-                    targetPoint.x + controlDistance * Math.cos(skewAngle);
-                  targetControlY =
-                    targetPoint.y - controlDistance * Math.sin(skewAngle);
+                  targetControlX = targetPoint.x + controlDistance * Math.cos(skewAngle);
+                  targetControlY = targetPoint.y - controlDistance * Math.sin(skewAngle);
                   break;
                 case "bottom-right":
-                  targetControlX =
-                    targetPoint.x + controlDistance * Math.cos(-skewAngle);
-                  targetControlY =
-                    targetPoint.y + controlDistance * Math.sin(-skewAngle);
+                  targetControlX = targetPoint.x + controlDistance * Math.cos(-skewAngle);
+                  targetControlY = targetPoint.y + controlDistance * Math.sin(-skewAngle);
                   break;
                 case "bottom-left":
-                  targetControlX =
-                    targetPoint.x - controlDistance * Math.cos(skewAngle);
-                  targetControlY =
-                    targetPoint.y + controlDistance * Math.sin(skewAngle);
+                  targetControlX = targetPoint.x - controlDistance * Math.cos(skewAngle);
+                  targetControlY = targetPoint.y + controlDistance * Math.sin(skewAngle);
                   break;
                 case "top-left":
-                  targetControlX =
-                    targetPoint.x - controlDistance * Math.cos(-skewAngle);
-                  targetControlY =
-                    targetPoint.y - controlDistance * Math.sin(-skewAngle);
+                  targetControlX = targetPoint.x - controlDistance * Math.cos(-skewAngle);
+                  targetControlY = targetPoint.y - controlDistance * Math.sin(-skewAngle);
                   break;
                 default:
                   targetControlX = targetPoint.x;
@@ -826,19 +759,28 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
       console.error("Erreur dans updateSvgConnections:", error);
     }
   }, [lines]);
-  // Remplacez votre useEffect pour les lignes avec ceci:
+
+  // Mettre à jour les connexions SVG quand les lignes changent
   useEffect(() => {
     if (lines.length > 0) {
-      // Utiliser un seul setTimeout, avec un délai raisonnable
-      const timer = setTimeout(() => {
+      // Utiliser un debounce pour éviter trop de mises à jour
+      if (svgConnectionsUpdateTimeout.current) {
+        clearTimeout(svgConnectionsUpdateTimeout.current);
+      }
+
+      svgConnectionsUpdateTimeout.current = setTimeout(() => {
         updateSvgConnections();
       }, 100);
 
-      return () => clearTimeout(timer); // Nettoyer le timeout si le composant est démonté
+      return () => {
+        if (svgConnectionsUpdateTimeout.current) {
+          clearTimeout(svgConnectionsUpdateTimeout.current);
+        }
+      };
     }
   }, [lines, elements, updateSvgConnections]);
 
-  // Modifiez votre fonction handleDotClick pour utiliser un seul setTimeout:
+  // Gestion des clics sur les points de connexion
   const handleDotClick = (elementId, dot, side) => {
     if (!sourceElementRef.current) {
       // Premier clic - sélectionner le point de départ
@@ -846,7 +788,6 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
       sourceSideRef.current = side;
       sourceDotRef.current = dot;
       dot.style.backgroundColor = "#e74c3c";
-      console.log("Source set:", elementId, side);
     } else {
       // Deuxième clic - créer la connexion seulement si on clique sur un élément différent
       if (sourceElementRef.current !== elementId) {
@@ -855,14 +796,6 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
 
         // Créer une nouvelle ligne avec un ID unique
         const lineId = uuidv4();
-        console.log(
-          "Creating new line:",
-          sourceElementRef.current,
-          sourceSideRef.current,
-          "to",
-          targetElementId,
-          targetSide
-        );
 
         const newLine = {
           id: lineId,
@@ -874,23 +807,26 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
           thickness: 2,
           toolType: tool.tool,
         };
+
+        // Ajouter des offsets spécifiques pour le parallélogramme
         const sourceElement = document.getElementById(sourceElementRef.current);
         const targetElement = document.getElementById(targetElementId);
 
         if (sourceElement && sourceElement.getAttribute("shape-type") === "4") {
-          newLine.sourceOffset = { x: 0, y: 0 }; // Ajustez ces valeurs selon vos besoins
+          newLine.sourceOffset = { x: 0, y: 0 };
         }
 
         if (targetElement && targetElement.getAttribute("shape-type") === "4") {
-          newLine.targetOffset = { x: 0, y: 0 }; // Ajustez ces valeurs selon vos besoins
+          newLine.targetOffset = { x: 0, y: 0 };
         }
-        // Ajouter la nouvelle ligne à la liste des lignes
+
+        // Ajouter la nouvelle ligne
         updateLinesAndPropagate((prevLines) => [...prevLines, newLine]);
       }
 
-      // Réinitialiser la sélection dans tous les cas
+      // Réinitialiser la sélection
       if (sourceDotRef.current) {
-        sourceDotRef.current.style.backgroundColor = "#3498db"; // Remettre le point source à sa couleur d'origine
+        sourceDotRef.current.style.backgroundColor = "#3498db";
       }
       sourceElementRef.current = null;
       sourceSideRef.current = null;
@@ -898,87 +834,138 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
     }
   };
 
-  // Fonction pour créer un modèle de points sur la grille
+  // Création optimisée des points de la grille
+  // Création optimisée des points de la grille
   const createDotPattern = useCallback(() => {
-    const dotBgColor = "#00000050";
-    const dotHoverColor = "black";
+    // Limiter la fréquence de création de points (éviter les recréations trop fréquentes)
+    const now = Date.now();
+    if (now - lastDotGridUpdate.current < 200) {
+      return;
+    }
+    lastDotGridUpdate.current = now;
 
-    // Create a container for the dots
+    const dotBgColor = "#00000050";
+
+    // Créer un conteneur pour les points
     const dotContainer = document.createElement("div");
     dotContainer.style.position = "absolute";
-    dotContainer.style.top = "8px";
-    dotContainer.style.left = "8px";
+    dotContainer.style.top = "0";
+    dotContainer.style.left = "0";
     dotContainer.style.width = "100%";
     dotContainer.style.height = "100%";
     dotContainer.style.pointerEvents = "none";
-    dotContainer.id = "momo";
+    dotContainer.id = "dotsContainer";
 
-    // Use dynamic canvas size
-    const windowWidth = canvasSize.width;
-    const windowHeight = canvasSize.height;
+    // IMPORTANT: Ajouter un z-index inférieur pour que les points restent sous les éléments
+    dotContainer.style.zIndex = "1";
 
-    // Spacing between dots in pixels
-    const spacing = 25;
+    // Récupérer les dimensions visibles
+    const containerEl = containerRef.current;
+    if (!containerEl) return;
 
-    // Calculate number of dots in each dimension
-    const dotsX = Math.floor(windowWidth / spacing);
-    const dotsY = Math.floor(windowHeight / spacing);
+    // Obtenir le zoom actuel (depuis l'élément ou l'état)
+    const currentZoom = parseFloat(containerEl.style.zoom || "100") / 100 || 1;
 
-    // Create dots and position them on a grid
+    // Obtenir les dimensions réelles de la zone visible
+    const containerRect = containerEl.getBoundingClientRect();
+    const scrollLeft = containerEl.scrollLeft;
+    const scrollTop = containerEl.scrollTop;
+
+    // Calculer les dimensions de la zone visible en tenant compte du zoom
+    const visibleWidth = containerRect.width / currentZoom;
+    const visibleHeight = containerRect.height / currentZoom;
+
+    // Définir l'espacement entre les points, ajusté en fonction du zoom
+    // Plus le zoom est petit, plus l'espacement sera grand pour éviter trop de points
+    const baseSpacing = 25;
+    const spacing = Math.max(baseSpacing, baseSpacing / Math.max(0.1, currentZoom) * 0.5);
+
+    // Calculer les limites de la zone à couvrir (visible + marge)
+    // Convertir les coordonnées de défilement en coordonnées de grille
+    const startX = Math.floor(scrollLeft / spacing) * spacing;
+    const startY = Math.floor(scrollTop / spacing) * spacing;
+
+    // Ajouter une marge (2x) pour éviter les vides lors du défilement
+    const endX = Math.ceil((scrollLeft + visibleWidth * 2) / spacing) * spacing;
+    const endY = Math.ceil((scrollTop + visibleHeight * 2) / spacing) * spacing;
+
+    // Calculer le nombre de points à créer
+    const dotsX = Math.floor((endX - startX) / spacing) + 1;
+    const dotsY = Math.floor((endY - startY) / spacing) + 1;
+
+    console.log(`Création de la grille: ${dotsX}x${dotsY} points avec espacement ${Math.round(spacing)}px au zoom ${currentZoom}`);
+
+    // Traiter les points par lots pour optimiser les performances
+    const batchSize = 200;
+    let batch = [];
+
     for (let y = 0; y < dotsY; y++) {
       for (let x = 0; x < dotsX; x++) {
-        const dot = document.createElement("div");
+        const dotX = startX + x * spacing;
+        const dotY = startY + y * spacing;
 
-        // Style the dot
-        dot.style.position = "absolute";
-        dot.style.width = "3px";
-        dot.style.height = "3px";
-        dot.style.backgroundColor = dotBgColor;
-        dot.style.borderRadius = "50%";
-        dot.setAttribute("x", `${x * spacing + 8}`);
-        dot.setAttribute("y", `${y * spacing + 8}`);
-        dot.classList.add("zone");
+        batch.push({ x: dotX, y: dotY });
 
-        // Position the dot
-        dot.style.left = `${x * spacing}px`;
-        dot.style.top = `${y * spacing}px`;
-        dot.style.pointerEvents = "auto";
-
-        // Make dots more interactive
-        dot.addEventListener("mouseover", function () {
-
-          setDotPosition([this.getAttribute("x"), this.getAttribute("y")]);
-        });
-
-        // Add the dot to the container
-        dotContainer.appendChild(dot);
+        if (batch.length >= batchSize) {
+          processDotBatch(batch, dotContainer, dotBgColor, setDotPosition);
+          batch = [];
+        }
       }
     }
 
-    // Add the container to the document
+    // Traiter les points restants
+    if (batch.length > 0) {
+      processDotBatch(batch, dotContainer, dotBgColor, setDotPosition);
+    }
+
+    // Ajouter le conteneur au document
     const openDiv = document.querySelector(".openDiv");
     if (openDiv) {
-      // Remove existing dot pattern if exists
-      const existingDotContainer = document.getElementById("momo");
-      if (existingDotContainer) {
-        existingDotContainer.remove();
+      // Supprimer l'ancien motif
+      const existingContainer = document.getElementById("dotsContainer");
+      if (existingContainer) {
+        existingContainer.remove();
       }
 
       openDiv.appendChild(dotContainer);
     }
-  }, [canvasSize]);
+  }, [containerRef]);
 
-  // Update useEffect to call createDotPattern
-  useEffect(() => {
-    createDotPattern();
-  }, [createDotPattern]);
+  // Fonction d'aide pour traiter un lot de points
+  const processDotBatch = (batch, container, dotBgColor, setDotPosition) => {
+    batch.forEach(dotData => {
+      const dot = document.createElement("div");
 
+      // Style du point
+      dot.style.position = "absolute";
+      dot.style.width = "3px";
+      dot.style.height = "3px";
+      dot.style.backgroundColor = dotBgColor;
+      dot.style.borderRadius = "50%";
+      dot.setAttribute("x", `${dotData.x}`);
+      dot.setAttribute("y", `${dotData.y}`);
+      dot.classList.add("zone");
+
+      dot.style.left = `${dotData.x}px`;
+      dot.style.top = `${dotData.y}px`;
+      dot.style.pointerEvents = "auto";
+
+      // Optimisation du gestionnaire d'événements
+      dot.addEventListener("mouseover", function () {
+        setDotPosition([this.getAttribute("x"), this.getAttribute("y")]);
+      });
+
+      container.appendChild(dot);
+    });
+  };
+
+  // Fonction pour sélectionner un élément
   const select = (e, id) => {
     setMouseIsDown(true);
     setUuid(id);
   };
 
-  // Version améliorée de la fonction setElementPosition
+  // Fonction pour déplacer un élément
   const setElementPosition = (e) => {
     if (isDown && uuid !== null) {
       const el = elements.find((el) => el.id === uuid);
@@ -1020,7 +1007,7 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
         });
       }
 
-      // Mettre à jour les connexions SVG après déplacement
+      // Optimisation: utiliser requestAnimationFrame pour mettre à jour les connexions
       if (lines.length > 0) {
         if (window.svgUpdateTimer) {
           cancelAnimationFrame(window.svgUpdateTimer);
@@ -1033,27 +1020,26 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
     }
   };
 
-
-  // Version améliorée de la fonction mouseIsDown pour la création d'éléments
+  // Fonction pour créer un nouvel élément
   const mouseIsDown = (e) => {
     if (tool.tool !== 0 && tool.tool < 6) {
       setMouseIsDown(true);
 
-      // Générer un nouvel UUID pour cet élément
+      // Générer un nouvel UUID
       const newId = uuidv4();
 
-      // Récupérer la position initiale à partir du point
+      // Récupérer la position initiale
       let initialX = parseInt(dotPosition[0]);
       let initialY = parseInt(dotPosition[1]);
 
-      // Définir les dimensions par défaut
+      // Dimensions par défaut
       const width = defaultDimensions.current.width;
       const height = defaultDimensions.current.height;
 
       // Vérifier si la position est déjà occupée
       const hasCollision = checkCollision(initialX, initialY, width, height);
 
-      // Si collision ou hors limites, trouver une position libre
+      // Si collision, trouver une position libre
       if (hasCollision) {
         const newPosition = findEmptyPosition(initialX, initialY, width, height);
         initialX = newPosition.x;
@@ -1106,43 +1092,36 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
       // Mettre à jour le style courant
       setStyle(newShape);
 
-      // Créer une nouvelle fonction sécurisée pour cette opération spécifique
-      const safelyAddElement = () => {
-        setElements(prevElements => {
-          const newElements = [...prevElements, newShape];
-          // Propager seulement après l'initialisation complète du composant
-          if (!isInitialRender.current) {
-            setTimeout(() => {
-              if (propSetElements) propSetElements(newElements);
-              if (onDataChange) onDataChange(newElements, lines);
-            }, 0);
-          }
-          return newElements;
-        });
-      };
-
-      // Appeler la fonction sécurisée
-      safelyAddElement();
+      // Ajouter l'élément au tableau
+      setElements(prevElements => {
+        const newElements = [...prevElements, newShape];
+        if (!isInitialRender.current) {
+          setTimeout(() => {
+            if (propSetElements) propSetElements(newElements);
+            if (onDataChange) onDataChange(newElements, lines);
+          }, 0);
+        }
+        return newElements;
+      });
 
       // Stocker l'UUID pour le redimensionnement
       setUuid(newId);
     }
   };
 
-  // Fonction améliorée pour vérifier les collisions avec les éléments existants
+  // Fonction pour vérifier les collisions avec les éléments existants
   const checkCollision = (x, y, width, height, currentElementId = null) => {
     // Vérifier la collision avec tous les éléments existants
     return elements.some(element => {
-      // Ignorer l'élément courant lors de la vérification
+      // Ignorer l'élément courant
       if (currentElementId && element.id === currentElementId) return false;
 
-      // Calculer les limites de l'élément existant
+      // Calculer les limites des éléments
       const elementLeft = parseInt(element.x);
       const elementRight = parseInt(element.x) + parseInt(element.width);
       const elementTop = parseInt(element.y);
       const elementBottom = parseInt(element.y) + parseInt(element.height);
 
-      // Calculer les limites du nouvel élément
       const newElementRight = x + width;
       const newElementBottom = y + height;
 
@@ -1156,13 +1135,9 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
     });
   };
 
-  // Fonction améliorée pour trouver une position libre
+  // Fonction pour trouver une position libre
   const findEmptyPosition = (startX, startY, width, height) => {
-    // Récupérer les dimensions de la zone de travail
-    const containerRect = document.querySelector(".openDiv")?.getBoundingClientRect();
-    if (!containerRect) return { x: startX, y: startY };
-
-    // Garantir que la position reste dans les limites de la zone de travail
+    // Garantir que la position reste dans les limites
     const maxX = canvasSize.width - width;
     const maxY = canvasSize.height - height;
 
@@ -1171,7 +1146,7 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
 
     // Chercher en spirale à partir du point de départ
     let layer = 1;
-    let maxLayers = 30; // Limiter la recherche pour éviter une boucle infinie
+    const maxLayers = 30; // Limiter la recherche
 
     // Essayer d'abord la position initiale
     if (!checkCollision(startX, startY, width, height)) {
@@ -1235,33 +1210,29 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
       layer++;
     }
 
-    // Si aucune position n'est trouvée après toutes les itérations, 
-    // trouver une position qui est au moins à l'intérieur des limites
+    // Position par défaut si aucune position libre n'est trouvée
     return {
       x: Math.max(0, Math.min(startX, maxX)),
       y: Math.max(0, Math.min(startY, maxY))
     };
   };
 
-
+  // Formatage des couleurs hexadécimales
   function formatHexColor(color) {
-    // Si le code ne commence pas par "#", on le retourne inchangé
-    console.log(color, "coloraa")
     if (!color.startsWith("#")) return color;
 
-    // Si le code est en format raccourci "#RGB" ou "#RGBA"
-    if (color.length === 4 || color.length === 5) {
-      // On utilise les trois premières lettres (r, g, b) pour construire le code complet
+    // Si le code est en format raccourci "#RGB"
+    if (color.length === 4) {
       const r = color[1];
       const g = color[2];
       const b = color[3];
       return `#${r}${r}${g}${g}${b}${b}`;
     }
-    // Sinon, on suppose que le code est déjà au format complet
+
     return color;
   }
 
-
+  // Génération du SVG pour le parallélogramme
   const generateSvgBackgroundType4 = (fillColor) => {
     const validColor = formatHexColor(fillColor);
     const svgString = `
@@ -1272,36 +1243,32 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
     return `url("data:image/svg+xml;utf8,${encodeURIComponent(svgString)}") center no-repeat`;
   };
 
+  // Génération du SVG pour la note
   const generateSvgBackgroundType5 = (fillColor) => {
     const validColor = formatHexColor(fillColor);
-    console.log(validColor, "validColor")
     const svgString = `
      <svg xmlns="http://www.w3.org/2000/svg" viewBox="2.9 2.9 23.2 23.8" preserveAspectRatio="none">
-  <!-- Main shape with rounded corners at the bottom only -->
-  <path d="M6 3 H23 V6 C23 6.55228 23.4477 7 24 7 H26 V23 C26 24.6569 24.6569 26 23 26.6 H6 C4.34315 26 3 24.6569 3 23 V6 C3 4.34315 4.34315 3 6 3 Z" 
-        fill="${validColor}" 
-        stroke="#333333" 
-        stroke-width="0.63" 
-        stroke-linecap="round" 
-        stroke-linejoin="round" 
-        vector-effect="non-scaling-stroke" />
-        
-  <!-- The folded corner effect at top right -->
-  <path d="M23 3 L23 6 C23 6.55228 23.4477 7 24 7 H26 L23 3 Z" 
-        fill="#f5f5f5" 
-        stroke="#333333" 
-        stroke-width="0.63" 
-        stroke-linecap="round" 
-        stroke-linejoin="round" 
-        vector-effect="non-scaling-stroke" />
-</svg>
-
+      <path d="M6 3 H23 V6 C23 6.55228 23.4477 7 24 7 H26 V23 C26 24.6569 24.6569 26 23 26.6 H6 C4.34315 26 3 24.6569 3 23 V6 C3 4.34315 4.34315 3 6 3 Z" 
+            fill="${validColor}" 
+            stroke="#333333" 
+            stroke-width="0.63" 
+            stroke-linecap="round" 
+            stroke-linejoin="round" 
+            vector-effect="non-scaling-stroke" />
+            
+      <path d="M23 3 L23 6 C23 6.55228 23.4477 7 24 7 H26 L23 3 Z" 
+            fill="#f5f5f5" 
+            stroke="#333333" 
+            stroke-width="0.63" 
+            stroke-linecap="round" 
+            stroke-linejoin="round" 
+            vector-effect="non-scaling-stroke" />
+    </svg>
     `;
-    console.log(`url("data:image/svg+xml;utf8,${encodeURIComponent(svgString)}") center no-repeat`, "svgString");
     return `url("data:image/svg+xml;utf8,${encodeURIComponent(svgString)}") center no-repeat`;
   };
 
-
+  // Trouver l'élément le plus proche
   const findClosestElement = (referenceElement, elements) => {
     if (!elements.length || referenceElement == null) return null;
 
@@ -1315,7 +1282,6 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
 
     // Parcourir tous les éléments et trouver le plus proche
     elements.forEach((element) => {
-      // Ignorer l'élément de référence s'il est dans la liste
       if (element === referenceElement) return;
 
       const rect = element.getBoundingClientRect();
@@ -1334,50 +1300,45 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
     return closestElement;
   };
 
+  // Gestion du relâchement de la souris
   const mouseIsUp = () => {
-    console.log(elements, "elements")
     setMouseIsDown(false);
-
-    // Réinitialiser l'ID de l'élément en mouvement
-    window.movingElementId = null;
 
     // Si l'outil d'alignement est actif, aligner à la grille
     if (tool.tool === 0 && uuid) {
       const reference = document.getElementById(uuid);
-      const otherElements = Array.from(
-        document.querySelector("#momo").children
-      );
-      const closest = findClosestElement(reference, otherElements);
+      const dotContainer = document.querySelector("#dotsContainer");
 
-      if (closest) {
-        document.getElementById(uuid).style.top =
-          closest.getAttribute("y") + "px";
-        document.getElementById(uuid).style.left =
-          closest.getAttribute("x") + "px";
+      if (reference && dotContainer) {
+        const otherElements = Array.from(dotContainer.children);
+        const closest = findClosestElement(reference, otherElements);
 
-        updateElementsAndPropagate((prevElements) => {
-          return prevElements.map((element) => {
-            if (element.id === uuid) {
-              return {
-                ...element,
-                x: closest.getAttribute("x"),
-                y: closest.getAttribute("y"),
-              };
-            } else {
-              return element;
-            }
+        if (closest) {
+          // Aligner l'élément au point le plus proche
+          updateElementsAndPropagate((prevElements) => {
+            return prevElements.map((element) => {
+              if (element.id === uuid) {
+                return {
+                  ...element,
+                  x: closest.getAttribute("x"),
+                  y: closest.getAttribute("y"),
+                };
+              } else {
+                return element;
+              }
+            });
           });
-        });
+        }
       }
     }
 
-    // Annuler toute mise à jour d'animation en cours
+    // Annuler les mises à jour d'animation en cours
     if (window.svgUpdateTimer) {
       cancelAnimationFrame(window.svgUpdateTimer);
       window.svgUpdateTimer = null;
     }
 
-    // Mettre à jour les connexions si nécessaire
+    // Mettre à jour les connexions
     if (lines.length > 0) {
       setTimeout(() => {
         updateSvgConnections();
@@ -1393,14 +1354,14 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
     }
   };
 
-  // Version améliorée de la fonction setDimensions
+  // Fonction pour redimensionner un élément
   const setDimensions = (e, active) => {
     if ((isDown && tool.tool !== 0 && tool.tool < 6 && tool.tool !== -1) || active) {
       const number = 25; // Incrément de taille
       let newWidth = style.width;
       let newHeight = style.height;
 
-      // Mettre à jour les dimensions en fonction du type d'outil
+      // Mettre à jour les dimensions selon le type de forme
       if (tool.tool === 2 || tool.tool === 3) {
         // Cercle ou Losange - même largeur et hauteur
         if (e.movementX > 0 || e.movementY > 0) {
@@ -1411,7 +1372,7 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
           newHeight = newWidth;
         }
       } else if (tool.tool === 1 || tool.tool === 4 || tool.tool === 5) {
-        // Rectangle, Parallélogramme ou Autre - dimensions indépendantes
+        // Rectangle, Parallélogramme ou Note - dimensions indépendantes
         if (e.movementX > 0) {
           newWidth = style.width + number;
         } else if (e.movementX < 0) {
@@ -1429,28 +1390,27 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
       const element = elements.find(el => el.id === uuid);
       if (!element) return;
 
-      // Vérifier les limites
+      // Limites de taille
       const maxX = canvasSize.width - element.x;
       const maxY = canvasSize.height - element.y;
 
-      // Limiter les dimensions pour rester dans les limites
       newWidth = Math.min(newWidth, maxX);
       newHeight = Math.min(newHeight, maxY);
 
-      // Vérifier les collisions avec d'autres éléments
+      // Vérifier les collisions
       const hasCollision = checkCollision(parseInt(element.x), parseInt(element.y), newWidth, newHeight, uuid);
 
       if (!hasCollision) {
         // Mettre à jour le style local
-        setStyle((prevStyle) => ({
+        setStyle(prevStyle => ({
           ...prevStyle,
           width: newWidth,
           height: newHeight,
         }));
 
-        // Mettre à jour l'élément actif dans le tableau
-        updateElementsAndPropagate((prevElements) => {
-          return prevElements.map((el) => {
+        // Mettre à jour l'élément dans le tableau
+        updateElementsAndPropagate(prevElements => {
+          return prevElements.map(el => {
             if (el.id === uuid) {
               shapeStyleAfter(newWidth);
               return {
@@ -1467,19 +1427,18 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
     }
   };
 
+  // Fonction pour changer la couleur d'une forme
   const changeShapeColor = () => {
-    // Met à jour la couleur générale dans l'état
-    setColor(color);
-
-    updateElementsAndPropagate((prevElements) =>
-      prevElements.map((element) => {
+    // Mettre à jour la couleur dans l'état
+    updateElementsAndPropagate(prevElements =>
+      prevElements.map(element => {
         if (element.id === uuid) {
           let updatedElement = { ...element, bgColor: color };
-          // Si l'élément est de type 4 ou 5, on génère un background personnalisé
+
+          // Générer un fond personnalisé pour les types spéciaux
           if (element.type === 4) {
             updatedElement.background = generateSvgBackgroundType4(color);
           } else if (element.type === 5) {
-            console.log(color, "newColor2")
             updatedElement.background = generateSvgBackgroundType5(color);
           }
           return updatedElement;
@@ -1489,28 +1448,28 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
     );
   };
 
+  // Fonction pour gérer l'édition de texte
   const manageInput = () => {
     tool.tool = -1;
     const el = document.getElementById("input" + uuid);
     if (el) {
       // Rendre l'élément visible
       el.style.display = "flex";
-
-      // Augmenter le z-index pour s'assurer qu'il est au-dessus
       el.style.zIndex = "3";
-      el.focus();
-      // Mettre le focus sur l'input après un court délai
+
+      // Mettre le focus sur l'input
       setTimeout(() => {
         el.focus();
       }, 10);
     }
   };
 
+  // Fonction pour mettre à jour le texte d'un élément
   const setTextElement = () => {
     const el = document.getElementById("input" + uuid);
     if (el) {
-      updateElementsAndPropagate((prevElements) => {
-        return prevElements.map((element) => {
+      updateElementsAndPropagate(prevElements => {
+        return prevElements.map(element => {
           if (element.id === uuid) {
             return {
               ...element,
@@ -1524,6 +1483,7 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
     }
   };
 
+  // Fonction pour afficher le menu d'une forme
   const menu = (elementId) => {
     setUuid(elementId);
     const element = document.getElementById(elementId);
@@ -1531,29 +1491,29 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
       const shapeMenu = document.querySelector(".shapeMenu");
       if (shapeMenu) {
         shapeMenu.style.display = "flex";
-        shapeMenu.style.left =
-          parseInt(element.style.left) +
-          parseInt(element.style.width) -
-          100 +
-          "px";
+        shapeMenu.style.left = parseInt(element.style.left) + parseInt(element.style.width) - 100 + "px";
         shapeMenu.style.top = parseInt(element.style.top) - 45 + "px";
+
         const colorPicker = document.getElementById("ddc");
-        const rect = colorPicker.getBoundingClientRect();
-        setTopValue(rect.top);
-        setLeftValue(rect.left);
+        if (colorPicker) {
+          const rect = colorPicker.getBoundingClientRect();
+          setTopValue(rect.top);
+          setLeftValue(rect.left);
+        }
       }
     }
   };
 
+  // Fonction pour supprimer un élément
   const deleteElement = () => {
     // Supprimer l'élément
-    updateElementsAndPropagate((prevElements) =>
-      prevElements.filter((element) => element.id !== uuid)
+    updateElementsAndPropagate(prevElements =>
+      prevElements.filter(element => element.id !== uuid)
     );
 
-    // Supprimer également toutes les lignes connectées à cet élément
-    updateLinesAndPropagate((prevLines) =>
-      prevLines.filter((line) => line.source !== uuid && line.target !== uuid)
+    // Supprimer les lignes connectées
+    updateLinesAndPropagate(prevLines =>
+      prevLines.filter(line => line.source !== uuid && line.target !== uuid)
     );
 
     // Cacher le menu
@@ -1562,37 +1522,14 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
       shapeMenu.style.display = "none";
     }
 
-    // Mettre à jour l'affichage des connexions
+    // Mettre à jour les connexions
     setTimeout(() => {
       updateSvgConnections();
     }, 100);
   };
 
-  // Gestion du zoom
-  const handleWheel = (e) => {
-    e.preventDefault();
-
-    if (tool.tool === -1) {
-      document.querySelector(".openDiv").scrollTo({
-        top: 5000,
-        left: 5000,
-        behavior: "smooth",
-      });
-      // Déterminer la direction du zoom
-      const delta = e.deltaY;
-
-      // Ajuster le zoom (limiter entre 0.5 et 3)
-
-      setZoom((prevZoom) => {
-        let newZoom = prevZoom - delta * 0.001;
-        return Math.max(0.5, Math.min(3, newZoom));
-      });
-    }
-  };
-
+  // Fonction pour ajuster le style du menu
   const shapeStyleAfter = (width) => {
-    console.log(width, "erfg");
-    // Sélectionner la div shapeMenu
     const shapeMenu = document.querySelector(".shapeMenu");
     if (!shapeMenu) return;
 
@@ -1600,7 +1537,7 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
     const styleSheet = document.createElement("style");
     document.head.appendChild(styleSheet);
 
-    // Définir le style ::after pour cette classe
+    // Définir le style ::after
     styleSheet.textContent = `
       .shapeMenu::after {
         content:"";
@@ -1612,54 +1549,47 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
         height: 20px;
       }`;
 
-    // Assurez-vous que la div a position relative
     shapeMenu.style.position = "relative";
   };
-  const calculateFontSize = (text, width, height) => {
-    if (!text) return "14px"; // Taille par défaut
 
-    // Calculer la taille de base en fonction de la largeur disponible
+  // Calculer la taille de police en fonction du texte
+  const calculateFontSize = (text, width, height) => {
+    if (!text) return "14px";
+
+    // Taille de base selon l'espace disponible
     const baseSize = Math.min(width / (text.length * 0.7), height / 2);
 
-    // Limiter la taille dans une plage raisonnable (entre 9px et 20px)
+    // Limiter la taille entre 9px et 20px
     return Math.max(9, Math.min(baseSize, 20)) + "px";
   };
 
-
+  // Fonction pour importer un fichier JSON
   function importJsonFile(file) {
     const reader = new FileReader();
 
-    reader.onload = (event) => {
+    reader.onload = event => {
       try {
-        // Parser directement le contenu JSON
         const parsedData = JSON.parse(event.target.result);
-        console.log(parsedData.elements, "parsedData");
-        // Mettre à jour l'état
 
         updateElementsAndPropagate(parsedData.elements);
         updateLinesAndPropagate(parsedData.lines);
-        console.log("Fichier importé avec succès");
+
+        // Recréer la grille de points après l'import
+        setTimeout(createDotPattern, 100);
       } catch (error) {
         console.error('Erreur de parsing JSON:', error);
       }
     };
 
-    // Lire le fichier comme texte
     reader.readAsText(file);
   }
-  const [topValue, setTopValue] = useState(0);
-  const [leftValue, setLeftValue] = useState(0);
-  useEffect(() => {
 
-  }, [isOpen]);
-
-  // 1. Définir correctement les fonctions de propagation
+  // Fonction pour mettre à jour les éléments et propager au parent
   const updateElementsAndPropagate = useCallback((updaterFn) => {
-    // Vérifier s'il s'agit d'une fonction ou d'une valeur directe
     if (typeof updaterFn === 'function') {
       setElements(prevElements => {
         const newElements = updaterFn(prevElements);
-        // Notifier le parent seulement après la mise à jour de l'état, pas pendant le rendu
+
         if (!isInitialRender.current) {
           setTimeout(() => {
             if (propSetElements) propSetElements(newElements);
@@ -1669,9 +1599,8 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
         return newElements;
       });
     } else {
-      // Valeur directe fournie
       setElements(updaterFn);
-      // Notifier le parent seulement après la mise à jour de l'état, pas pendant le rendu
+
       if (!isInitialRender.current) {
         setTimeout(() => {
           if (propSetElements) propSetElements(updaterFn);
@@ -1681,12 +1610,12 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
     }
   }, [propSetElements, onDataChange, lines]);
 
+  // Fonction pour mettre à jour les lignes et propager au parent
   const updateLinesAndPropagate = useCallback((updaterFn) => {
-    // Vérifier s'il s'agit d'une fonction ou d'une valeur directe
     if (typeof updaterFn === 'function') {
       setLines(prevLines => {
         const newLines = updaterFn(prevLines);
-        // Notifier le parent seulement après la mise à jour de l'état, pas pendant le rendu
+
         if (!isInitialRender.current) {
           setTimeout(() => {
             if (propSetLines) propSetLines(newLines);
@@ -1696,9 +1625,8 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
         return newLines;
       });
     } else {
-      // Valeur directe fournie
       setLines(updaterFn);
-      // Notifier le parent seulement après la mise à jour de l'état, pas pendant le rendu
+
       if (!isInitialRender.current) {
         setTimeout(() => {
           if (propSetLines) propSetLines(updaterFn);
@@ -1708,20 +1636,21 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
     }
   }, [propSetLines, onDataChange, elements]);
 
-  // 2. Mettre à jour les effets pour qu'ils utilisent les fonctions correctes
+  // Mettre à jour les éléments lorsqu'ils changent dans le parent
   useEffect(() => {
     if (propElements && propElements !== elements) {
       setElements(propElements);
     }
   }, [propElements]);
 
+  // Mettre à jour les lignes lorsqu'elles changent dans le parent
   useEffect(() => {
     if (propLines && propLines !== lines) {
       setLines(propLines);
     }
   }, [propLines]);
 
-  // 3. Pour useImperativeHandle, utiliser les fonctions setElements et setLines
+  // Exposer des méthodes au parent via ref
   useImperativeHandle(ref, () => ({
     updateData: (newElements, newLines) => {
       setElements(newElements);
@@ -1729,41 +1658,54 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
     }
   }));
 
-  const hasDuplicates = elements.map(el => el.id).some((id, index, array) =>
-    array.indexOf(id) !== index
-  );
-  console.log("Duplicate IDs found:", hasDuplicates);
-
+  // Garantir que le composant est marqué comme chargé
   useEffect(() => {
-    // Si tous les éléments nécessaires sont chargés, marquer comme prêt
     const timer = setTimeout(() => {
       if (!isInternallyLoaded) {
         setIsInternallyLoaded(true);
       }
-    }, 1000); // Garantir que le composant sera marqué comme chargé après 1 seconde
+    }, 1000); // Garantir que le chargement est marqué comme terminé après 1 seconde
 
     return () => clearTimeout(timer);
   }, []);
 
-
-  const [nzoom, setNzoom] = useState("100%");
-
-  const zoomFunc = (i) => {
+  // Fonction de zoom optimisée
+  const zoomFunc = (action) => {
     const container = document.querySelector(".openDiv");
-    const rect = container.getBoundingClientRect();
-    if (i < 2) {
-      container.style.zoom = i == 0 ? (parseInt(container.style.zoom) + 5) + "%" : (parseInt(container.style.zoom) - 5) + "%";
-      setNzoom(container.style.zoom);
+    if (!container) return;
+
+    let newZoomValue;
+
+    // Déterminer la nouvelle valeur de zoom
+    if (action === 0) {
+      // Zoom in: +5%
+      newZoomValue = parseInt(container.style.zoom || "100") + 5;
+    } else if (action === 1) {
+      // Zoom out: -5%
+      newZoomValue = parseInt(container.style.zoom || "100") - 5;
     } else {
-      container.style.zoom = "100%";
-      setNzoom("100%");
+      // Reset: 100%
+      newZoomValue = 100;
     }
 
+    // Limiter le zoom entre 10% et 200%
+    newZoomValue = Math.max(10, Math.min(200, newZoomValue));
 
+    // Appliquer le zoom
+    container.style.zoom = newZoomValue + "%";
+    setNzoom(newZoomValue + "%");
 
-    console.log(rect.height, "zoom")
+    // Recréer la grille après un court délai pour s'adapter au nouveau zoom
+    if (dotPatternCreationTimeout.current) {
+      clearTimeout(dotPatternCreationTimeout.current);
+    }
+
+    dotPatternCreationTimeout.current = setTimeout(() => {
+      createDotPattern();
+    }, 100);
   };
 
+  // Composant pour les contrôles de zoom
   const ZoomControls = () => {
     return (
       <div className="zoom-controls" style={{
@@ -1775,15 +1717,56 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
         gap: "10px",
         background: "rgba(255, 255, 255, 0.8)",
         padding: "5px",
-        borderRadius: "5px"
+        borderRadius: "5px",
+        boxShadow: "0 2px 5px rgba(0,0,0,0.2)"
       }}>
-        <button onClick={() => zoomFunc(1)}
-          style={{ width: "30px", height: "30px" }}>-</button>
-        <div style={{ display: "flex", alignItems: "center" }}>{nzoom}</div>
-        <button onClick={() => zoomFunc(0)}
-          style={{ width: "30px", height: "30px" }}>+</button>
-        <button onClick={() => zoomFunc(2)}
-          style={{ width: "auto", padding: "0 10px" }}>Reset</button>
+        <button
+        disabled={nzoom === "10%"}
+          onClick={() => zoomFunc(1)}
+          style={{
+            width: "30px",
+            height: "30px",
+            border: "1px solid #ccc",
+            borderRadius: "3px",
+            background: "#fff",
+            cursor: "pointer"
+          }}
+        >-</button>
+
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          minWidth: "50px",
+          justifyContent: "center",
+          fontSize: "14px"
+        }}>
+          {nzoom}
+        </div>
+
+        <button
+        disabled={nzoom === "100%"}
+          onClick={() => zoomFunc(0)}
+          style={{
+            width: "30px",
+            height: "30px",
+            border: "1px solid #ccc",
+            borderRadius: "3px",
+            background: "#fff",
+            cursor: "pointer"
+          }}
+        >+</button>
+
+        <button
+          onClick={() => zoomFunc(2)}
+          style={{
+            padding: "0 10px",
+            height: "30px",
+            border: "1px solid #ccc",
+            borderRadius: "3px",
+            background: "#fff",
+            cursor: "pointer"
+          }}
+        >Reset</button>
       </div>
     );
   };
@@ -1810,15 +1793,15 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
           boxSizing: "border-box",
           zoom: "100%",
           height: "100vh",
+          position: "relative"
         }}
       >
-
+        {/* Conteneur principal avec défilement */}
         <div
           ref={containerRef}
-          onWheel={(e) => [handleWheel(e), console.log(zoom, "icic")]}
           className="openDiv"
           onMouseDown={(e) => {
-            // Vérifier si on peut créer un nouvel élément
+            // Gestion de la création d'éléments
             if (
               tool.tool > 0 &&
               tool.tool < 6 &&
@@ -1826,8 +1809,11 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
                 document.querySelector(".shapeMenu")?.style.display === "")
             ) {
               mouseIsDown(e);
-            } else if (tool.tool == -1) {
-              document.getElementById("input" + uuid).style.zIndex = 1;
+            } else if (tool.tool === -1) {
+              const inputElement = document.getElementById("input" + uuid);
+              if (inputElement) {
+                inputElement.style.zIndex = "3";
+              }
             }
           }}
           onMouseUp={mouseIsUp}
@@ -1836,17 +1822,12 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
             width: `${canvasSize.width}px`,
             height: `${canvasSize.height}px`,
             background: "white",
-            // Add scrollable areas with infinite canvas feeling
             overflowX: "scroll",
             overflowY: "scroll",
-            transform: `scale(${zoom})`,
-            transformOrigin: "top left",
-
-            transition: "transform 0.1s ease",
             zoom: "100%",
           }}
         >
-          {/* Conteneur SVG pour les connexions */}
+          {/* SVG pour les connexions */}
           <svg
             className="connections-container"
             style={{
@@ -1862,7 +1843,7 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
             <defs>
               {svgConnections &&
                 svgConnections.map((conn) => {
-                  // Créez la flèche pour les outils 6 et 7
+                  // Créer les marqueurs de flèche pour les connections
                   if (
                     !conn.toolType ||
                     conn.toolType === 6 ||
@@ -1886,10 +1867,11 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
                 })}
             </defs>
 
+            {/* Rendu des connexions */}
             {svgConnections &&
               svgConnections.map((conn) => {
                 if (!conn.toolType || conn.toolType === 6) {
-                  // Flèche standard (outil 6)
+                  // Flèche standard
                   return (
                     <path
                       key={`path-${conn.id}`}
@@ -1901,7 +1883,7 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
                     />
                   );
                 } else if (conn.toolType === 7) {
-                  // Ligne pointillée avec flèche (outil 7)
+                  // Ligne pointillée avec flèche
                   return (
                     <path
                       key={`path-${conn.id}`}
@@ -1914,7 +1896,7 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
                     />
                   );
                 } else if (conn.toolType === 8) {
-                  // Points sans flèche (outil 8)
+                  // Ligne en pointillés sans flèche
                   return (
                     <path
                       key={`path-${conn.id}`}
@@ -1930,23 +1912,23 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
               })}
           </svg>
 
+          {/* Menu contextuel pour les formes */}
           <div
             className="shapeMenu"
             onMouseOver={() => menu(uuid)}
             onMouseOut={() => {
-              isOpen ? null : document.querySelector(".shapeMenu").style.display = "none";
+              if (!isOpen) document.querySelector(".shapeMenu").style.display = "none";
             }}
           >
-            <img src="/icons/policeIcon.png" onClick={() => manageInput()} />
+            <img src="/icons/policeIcon.png" onClick={() => manageInput()} alt="Text" />
             <div id="ddc">
               <PopoverPicker
                 color={color}
-                isOpen={isOpen}             // Passe l'état au composant enfant
+                isOpen={isOpen}
                 setIsOpen={setIsOpen}
               />
-
             </div>
-            <img onClick={() => deleteElement()} src="/icons/trash.png" />
+            <img onClick={() => deleteElement()} src="/icons/trash.png" alt="Delete" />
           </div>
 
           {/* Rendu des éléments */}
@@ -1956,17 +1938,13 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
               <div
                 onMouseUp={mouseIsUp}
                 onMouseOut={() => {
-                  [
-                    isOpen ? null : document.querySelector(".shapeMenu").style.display = "none"];
-                  //, setIsOpen(false)
+                  if (!isOpen) document.querySelector(".shapeMenu").style.display = "none";
                 }}
                 onMouseOver={() => {
-                  [
-                    !isDown && tool.tool < 6 ? [setColor(elementStyle.bgColor), setTimeout(() => { menu(elementStyle.id) }, 50)] : null,
-                  ]
-                  // setTimeout(() => {
-                  //   setIsOpen(true);
-                  // }, 500);
+                  if (!isDown && tool.tool < 6) {
+                    setColor(elementStyle.bgColor);
+                    setTimeout(() => { menu(elementStyle.id) }, 50);
+                  }
                 }}
                 id={elementStyle.id}
                 key={elementStyle.id}
@@ -1985,13 +1963,13 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
                     : elementStyle.bgColor,
                   transform: elementStyle.transform,
                   cursor: tool.tool === 0 ? "move" : "default",
+                  zIndex: "2", // Ajouter un z-index supérieur à celui des points
                 }}
                 shape-type={elementStyle.type}
               >
+                {/* Champ de texte pour l'élément */}
                 <textarea
-                  onMouseDown={(e) => {
-                    select(e, elementStyle.id);
-                  }}
+                  onMouseDown={(e) => select(e, elementStyle.id)}
                   id={"input" + elementStyle.id}
                   className="text-dark shape-input"
                   style={{
@@ -2016,8 +1994,8 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
                     textAlign: "center",
                     display: "block",
                     opacity: elementStyle.text ? "1" : "0.7",
-                    resize: "none", // Empêche le redimensionnement manuel
-                    overflow: "auto", // Permet le défilement si nécessaire
+                    resize: "none",
+                    overflow: "auto",
                     padding: "5px",
                     lineHeight: "1.2",
                     fontSize: calculateFontSize(
@@ -2033,16 +2011,35 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
             ))}
         </div>
       </div>
-      {isOpen && (
-        <div onMouseLeave={() => [document.querySelector(".shapeMenu").style.display = "none", setIsOpen(false)]} id="bbn" style={{ zIndex: "10", top: `${topValue + 40}px`, left: `${leftValue}px` }} className="popover" ref={popover} onMouseOver={() => console.log("over")}>
-          <HexColorPicker color={color} onChange={(newColor) => {
-            setColor(newColor);
 
-          }} onMouseUp={() => changeShapeColor()} />
+      {/* Sélecteur de couleur */}
+      {isOpen && (
+        <div
+          onMouseLeave={() => {
+            document.querySelector(".shapeMenu").style.display = "none";
+            setIsOpen(false);
+          }}
+          id="bbn"
+          style={{
+            zIndex: "10",
+            top: `${topValue + 40}px`,
+            left: `${leftValue}px`
+          }}
+          className="popover"
+          ref={popover}
+        >
+          <HexColorPicker
+            color={color}
+            onChange={(newColor) => setColor(newColor)}
+            onMouseUp={() => changeShapeColor()}
+          />
         </div>
       )}
+
+      {/* Contrôles de zoom */}
       <ZoomControls />
     </div>
   );
 });
+
 export default MainLogigramme;
