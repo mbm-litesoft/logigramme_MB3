@@ -5,7 +5,6 @@ import MainLogigramme from "../components/MainLogigramme.jsx";
 
 export default function Home() {
   const [tool, setTool] = useState({ tool: 0 });
-  const [uuid, setUuid] = useState("");
   
   // References to diagram data
   const [elements, setElements] = useState([]);
@@ -130,37 +129,37 @@ export default function Home() {
       <div className="row">
         <div className="mainMenu col-5 border bg-light rounded p-0 row position-absolute">
           <div className="d-flex text-light menu">
-            <div className="" onClick={() => setTool({ tool: 0 })}>
+            <div className={tool.tool == 0 ? "bg-danger" : ""} onClick={() => setTool({ tool: 0 })}>
               <img src="icons/cursor.png" alt="Cursor" />
             </div>
 
-            <div className="" onClick={() => setTool({ tool: -1 })}>
+            <div className={tool.tool == -1 ? "bg-danger" : ""} onClick={() => setTool({ tool: -1 })}>
               <img src="icons/zoom.png" alt="Zoom" />
             </div>
 
-            <div className="ms-auto" onClick={() => setTool({ tool: 1 })}>
+            <div className={tool.tool == 1 ? "bg-danger ms-auto" : "ms-auto"} onClick={() => setTool({ tool: 1 })}>
               <img src="icons/rectangle.png" alt="Rectangle" />
             </div>
-            <div className="" onClick={() => setTool({ tool: 2 })}>
+            <div className={tool.tool == 2 ? "bg-danger" : ""} onClick={() => setTool({ tool: 2 })}>
               <img src="icons/circle.png" alt="Circle" />
             </div>
-            <div className="" onClick={() => setTool({ tool: 3 })}>
+            <div className={tool.tool == 3 ? "bg-danger" : ""} onClick={() => setTool({ tool: 3 })}>
               <img src="icons/losange.png" alt="Diamond" />
             </div>
-            <div className="" onClick={() => setTool({ tool: 4 })}>
+            <div className={tool.tool == 4 ? "bg-danger" : ""} onClick={() => setTool({ tool: 4 })}>
               <img src="icons/rhomboide.png" alt="Parallelogram" />
             </div>
-            <div className="me-auto" onClick={() => setTool({ tool: 5 })}>
+            <div className={tool.tool == 5 ? "bg-danger me-auto" : "me-auto"} onClick={() => setTool({ tool: 5 })}>
               <img src="icons/note.png" alt="Note" />
             </div>
 
-            <div className="ms-auto" onClick={() => setTool({ tool: 6 })}>
+            <div className={tool.tool == 6 ? "bg-danger ms-auto" : "ms-auto"} onClick={() => setTool({ tool: 6 })}>
               <img src="icons/arrow.png" alt="Arrow" />
             </div>
-            <div className="" onClick={() => setTool({ tool: 7 })}>
+            <div className={tool.tool == 7 ? "bg-danger" : ""} onClick={() => setTool({ tool: 7 })}>
               <img src="icons/dotted-arrow.png" alt="Dotted Arrow" />
             </div>
-            <div className="dotsMenu" onClick={() => setTool({ tool: 8 })}>
+            <div className={tool.tool == 8 ? "bg-danger dotsMenu" : "dotsMenu"} onClick={() => setTool({ tool: 8 })}>
               ••••
             </div>
             
