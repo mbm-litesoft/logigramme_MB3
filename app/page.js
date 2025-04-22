@@ -5,6 +5,7 @@ import MainLogigramme from "../components/MainLogigramme.jsx";
 
 export default function Home() {
   const [tool, setTool] = useState({ tool: 0 });
+  const [uuid, setUuid] = useState("");
   
   // References to diagram data
   const [elements, setElements] = useState([]);
