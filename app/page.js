@@ -134,10 +134,6 @@ export default function Home() {
               <img src="icons/cursor.png" alt="Cursor" />
             </div>
 
-            <div className={tool.tool == -1 ? "bg-danger" : ""} onClick={() => setTool({ tool: -1 })}>
-              <img src="icons/zoom.png" alt="Zoom" />
-            </div>
-
             <div className={tool.tool == 1 ? "bg-danger ms-auto" : "ms-auto"} onClick={() => setTool({ tool: 1 })}>
               <img src="icons/rectangle.png" alt="Rectangle" />
             </div>

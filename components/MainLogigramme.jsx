@@ -61,6 +61,7 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
     height: 5000,
   });
 
+  
   // État du zoom
   const [nzoom, setNzoom] = useState("100%");
 
@@ -856,8 +857,7 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
     dotContainer.style.pointerEvents = "none";
     dotContainer.id = "dotsContainer";
 
-    // IMPORTANT: Ajouter un z-index inférieur pour que les points restent sous les éléments
-    dotContainer.style.zIndex = "1";
+ 
 
     // Récupérer les dimensions visibles
     const containerEl = containerRef.current;
@@ -961,35 +961,45 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
 
   // Fonction pour sélectionner un élément
   const select = (e, id) => {
+    // Trouver l'élément sélectionné
+    const element = elements.find(el => el.id === id);
+    
+    // Si c'est un losange (type 3), stockons sa position initiale
+    if (element && element.type === 3) {
+      // Stocker la position initiale de l'élément
+      window.losangeInitialX = element.x;
+      window.losangeInitialY = element.y;
+    }
+    
+    // Définir l'élément comme sélectionné
     setMouseIsDown(true);
     setUuid(id);
   };
 
-  // Fonction pour déplacer un élément
   const setElementPosition = (e) => {
     if (isDown && uuid !== null) {
       const el = elements.find((el) => el.id === uuid);
       if (!el) return;
-
+      
       // Calculer la nouvelle position
       const newX = parseInt(el.x) + e.movementX;
       const newY = parseInt(el.y) + e.movementY;
-
+  
       // Obtenir les dimensions de la zone de travail
       const containerRect = document.querySelector(".openDiv")?.getBoundingClientRect();
       if (!containerRect) return;
-
+  
       // Calculer les limites
       const maxX = canvasSize.width - el.width;
       const maxY = canvasSize.height - el.height;
-
+  
       // S'assurer que l'élément reste dans les limites
       const boundedX = Math.max(0, Math.min(newX, maxX));
       const boundedY = Math.max(0, Math.min(newY, maxY));
-
+  
       // Vérifier s'il y a une collision avec d'autres éléments
       const hasCollision = checkCollision(boundedX, boundedY, el.width, el.height, uuid);
-
+  
       if (!hasCollision) {
         // Mettre à jour la position si pas de collision
         updateElementsAndPropagate((prevElements) => {
@@ -1006,13 +1016,13 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
           });
         });
       }
-
+  
       // Optimisation: utiliser requestAnimationFrame pour mettre à jour les connexions
       if (lines.length > 0) {
         if (window.svgUpdateTimer) {
           cancelAnimationFrame(window.svgUpdateTimer);
         }
-
+  
         window.svgUpdateTimer = requestAnimationFrame(() => {
           updateSvgConnections();
         });
@@ -1067,15 +1077,15 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
           newShape = { ...newShape, type: 2, radius: "50%", transform: "" };
           break;
         case 3: // Losange
-          newShape = { ...newShape, type: 3, radius: "0%", transform: "rotate(45deg)" };
+          newShape = { ...newShape, type: 3, radius: "15%", transform: "rotate(45deg)" };
           break;
         case 4: // Parallélogramme
           newShape = {
             ...newShape,
             type: 4,
-            radius: "0%",
+            radius: "15%",
             transform: "skewX(15deg)",
-            background: generateSvgBackgroundType4("#ffffff")
+        
           };
           break;
         case 5: // Note
@@ -1084,7 +1094,8 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
             type: 5,
             radius: "0%",
             transform: "",
-            background: generateSvgBackgroundType5("#ffffff")
+            background: generateSvgBackgroundType5("#ffffff"),
+            border: "none"
           };
           break;
       }
@@ -1247,25 +1258,25 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
   const generateSvgBackgroundType5 = (fillColor) => {
     const validColor = formatHexColor(fillColor);
     const svgString = `
-     <svg xmlns="http://www.w3.org/2000/svg" viewBox="2.9 2.9 23.2 23.8" preserveAspectRatio="none">
-      <path d="M6 3 H23 V6 C23 6.55228 23.4477 7 24 7 H26 V23 C26 24.6569 24.6569 26 23 26.6 H6 C4.34315 26 3 24.6569 3 23 V6 C3 4.34315 4.34315 3 6 3 Z" 
-            fill="${validColor}" 
-            stroke="#333333" 
-            stroke-width="0.63" 
-            stroke-linecap="round" 
-            stroke-linejoin="round" 
-            vector-effect="non-scaling-stroke" />
-            
-      <path d="M23 3 L23 6 C23 6.55228 23.4477 7 24 7 H26 L23 3 Z" 
-            fill="#f5f5f5" 
-            stroke="#333333" 
-            stroke-width="0.63" 
-            stroke-linecap="round" 
-            stroke-linejoin="round" 
-            vector-effect="non-scaling-stroke" />
-    </svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="2.9 2.8 23.2 23.2" preserveAspectRatio="none">
+    <path d="M6 3 H23 V6 C23 6.55228 23.4477 7 24 7 H26 V22.78 C26 24.4343 24.6569 25.80 23 25.80 H6 C4.34315 25.80 3 24.4343 3 22.78 V6 C3 4.34315 4.34315 3 6 3 Z" 
+          fill="${validColor}" 
+          stroke="#333333" 
+          stroke-width="0.63" 
+          stroke-linecap="round" 
+          stroke-linejoin="round" 
+          vector-effect="non-scaling-stroke" />
+          
+    <path d="M23 3 L23 6 C23 6.55228 23.4477 7 24 7 H26 L23 3 Z" 
+          fill="#f5f5f5" 
+          stroke="#333333" 
+          stroke-width="0.63" 
+          stroke-linecap="round" 
+          stroke-linejoin="round" 
+          vector-effect="non-scaling-stroke" />
+</svg>
     `;
-    return `url("data:image/svg+xml;utf8,${encodeURIComponent(svgString)}") center no-repeat`;
+    return `url("data:image/svg+xml;utf8,${encodeURIComponent(svgString)}") no-repeat`;
   };
 
   // Trouver l'élément le plus proche
@@ -1302,57 +1313,129 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
 
   // Gestion du relâchement de la souris
   const mouseIsUp = () => {
-    setMouseIsDown(false);
+  setMouseIsDown(false);
+  
+  // Nettoyer les variables temporaires
+  window.losangeInitialX = undefined;
+  window.losangeInitialY = undefined;
 
-    // Si l'outil d'alignement est actif, aligner à la grille
-    if (tool.tool === 0 && uuid) {
-      const reference = document.getElementById(uuid);
-      const dotContainer = document.querySelector("#dotsContainer");
+  // Si l'outil d'alignement est actif, aligner à la grille
+  if (tool.tool === 0 && uuid) {
+    const reference = document.getElementById(uuid);
+    const dotContainer = document.querySelector("#dotsContainer");
 
-      if (reference && dotContainer) {
-        const otherElements = Array.from(dotContainer.children);
-        const closest = findClosestElement(reference, otherElements);
+    if (reference && dotContainer) {
+      const otherElements = Array.from(dotContainer.children);
+      const closest = findClosestElement(reference, otherElements);
 
-        if (closest) {
-          // Aligner l'élément au point le plus proche
-          updateElementsAndPropagate((prevElements) => {
-            return prevElements.map((element) => {
-              if (element.id === uuid) {
-                return {
-                  ...element,
-                  x: closest.getAttribute("x"),
-                  y: closest.getAttribute("y"),
-                };
-              } else {
-                return element;
-              }
-            });
+      if (closest) {
+        // Aligner l'élément au point le plus proche
+        updateElementsAndPropagate((prevElements) => {
+          return prevElements.map((element) => {
+            if (element.id === uuid) {
+              return {
+                ...element,
+                x: closest.getAttribute("x"),
+                y: closest.getAttribute("y"),
+              };
+            } else {
+              return element;
+            }
           });
-        }
+        });
       }
     }
+  }
 
-    // Annuler les mises à jour d'animation en cours
-    if (window.svgUpdateTimer) {
-      cancelAnimationFrame(window.svgUpdateTimer);
-      window.svgUpdateTimer = null;
-    }
+  // Annuler les mises à jour d'animation en cours
+  if (window.svgUpdateTimer) {
+    cancelAnimationFrame(window.svgUpdateTimer);
+    window.svgUpdateTimer = null;
+  }
 
-    // Mettre à jour les connexions
-    if (lines.length > 0) {
-      setTimeout(() => {
-        updateSvgConnections();
+  // Mettre à jour les connexions
+  if (lines.length > 0) {
+    setTimeout(() => {
+      updateSvgConnections();
 
-        // Réafficher les points de connexion en mode connexion
-        if (connectingMode) {
-          const shapes = document.querySelectorAll("[shape-type]");
-          shapes.forEach((element) => {
-            showConnectionPoints(element);
-          });
+      // Réafficher les points de connexion en mode connexion
+      if (connectingMode) {
+        const shapes = document.querySelectorAll("[shape-type]");
+        shapes.forEach((element) => {
+          showConnectionPoints(element);
+        });
+      }
+    }, 50);
+  }
+};
+
+// Ajouter des gestionnaires spécifiques pour les éléments losange
+const addLosangeEventHandlers = () => {
+  // Chercher tous les losanges
+  const losanges = document.querySelectorAll('[shape-type="3"]');
+  
+  losanges.forEach(losange => {
+    // Ajouter un gestionnaire de clic sur le conteneur du losange
+    losange.addEventListener('mousedown', (e) => {
+      const elementId = losange.id;
+      // Stocker la position initiale
+      const element = elements.find(el => el.id === elementId);
+      if (element) {
+        window.losangeInitialX = element.x;
+        window.losangeInitialY = element.y;
+      }
+      // Empêcher la propagation pour éviter les comportements inattendus
+      e.stopPropagation();
+    }, { capture: true });
+    
+    // Ajouter un gestionnaire pour le textarea à l'intérieur du losange
+    const textarea = losange.querySelector('textarea');
+    if (textarea) {
+      textarea.addEventListener('mousedown', (e) => {
+        const elementId = losange.id;
+        const element = elements.find(el => el.id === elementId);
+        if (element) {
+          window.losangeInitialX = element.x;
+          window.losangeInitialY = element.y;
         }
-      }, 50);
+        // Ne pas arrêter la propagation ici pour permettre l'édition de texte
+      }, { capture: true });
     }
+  });
+};
+
+// Ajouter un effet pour mettre à jour les gestionnaires de losanges
+useEffect(() => {
+  // Si nous avons des éléments et qu'ils sont rendus
+  if (elements.length > 0) {
+    // Attendre que le DOM soit mis à jour
+    setTimeout(() => {
+      addLosangeEventHandlers();
+    }, 100);
+  }
+}, [elements]);
+
+// Initialiser les variables globales au chargement
+useEffect(() => {
+  window.losangeInitialX = undefined;
+  window.losangeInitialY = undefined;
+  
+  return () => {
+    window.losangeInitialX = undefined;
+    window.losangeInitialY = undefined;
   };
+}, []);
+  
+  // Vous pouvez également ajouter une initialisation au chargement du composant
+  useEffect(() => {
+    // Initialiser les variables globales pour le déplacement du losange
+    window.losangeFirstMove = false;
+    
+    return () => {
+      // Nettoyage à la démonter du composant
+      window.losangeFirstMove = undefined;
+    };
+  }, []);
 
   // Fonction pour redimensionner un élément
   const setDimensions = (e, active) => {
@@ -1490,10 +1573,30 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
     if (element) {
       const shapeMenu = document.querySelector(".shapeMenu");
       if (shapeMenu) {
-        shapeMenu.style.display = "flex";
-        shapeMenu.style.left = parseInt(element.style.left) + parseInt(element.style.width) - 100 + "px";
-        shapeMenu.style.top = parseInt(element.style.top) - 45 + "px";
-
+        // Récupérer l'élément dans le tableau pour connaître son type
+        const elementData = elements.find(el => el.id === elementId);
+        if (!elementData) return;
+  
+        // Positionnement personnalisé selon le type de forme
+        if (elementData.type === 3) { // Losange
+          // Positionner le menu au centre du losange
+        
+          const elementRect = element.getBoundingClientRect();
+          const centerX = parseInt(element.style.left) + parseInt(element.style.width) / 2;
+          const centerY = parseInt(element.style.top) + parseInt(element.style.height) / 2;
+          
+          // Ajuster le positionnement du menu (centré horizontalement, au-dessus verticalement)
+          shapeMenu.style.display = "flex";
+          shapeMenu.style.left = `${centerX - 50}px`; // 50 = largeur du menu / 2
+          shapeMenu.style.top = `${parseInt(element.style.top) - 45}px`;
+        } else {
+          // Positionnement standard pour les autres formes
+          shapeMenu.style.display = "flex";
+          shapeMenu.style.left = `${parseInt(element.style.left) + parseInt(element.style.width) - 100}px`;
+          shapeMenu.style.top = `${parseInt(element.style.top) - 45}px`;
+        }
+  
+        // Mise à jour des coordonnées pour le sélecteur de couleur
         const colorPicker = document.getElementById("ddc");
         if (colorPicker) {
           const rect = colorPicker.getBoundingClientRect();
@@ -1532,25 +1635,37 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
   const shapeStyleAfter = (width) => {
     const shapeMenu = document.querySelector(".shapeMenu");
     if (!shapeMenu) return;
-
+  
     // Créer une feuille de style dynamique
     const styleSheet = document.createElement("style");
     document.head.appendChild(styleSheet);
-
-    // Définir le style ::after
+  
+    // Définir le style ::after avec une zone plus grande
     styleSheet.textContent = `
       .shapeMenu::after {
-        content:"";
+        content: "";
         position: absolute;
-        right: 0;
-        margin-top: 30px;
-        margin-left: -90px;
+        left: 0;
+        top: 100%;
         width: ${width}px;
         height: 20px;
+        background-color: transparent;
+        z-index: 10;
       }`;
-
+  
     shapeMenu.style.position = "relative";
   };
+  useEffect(() => {
+    const trackMousePosition = (e) => {
+      window.mousePosition = { x: e.clientX, y: e.clientY };
+    };
+    
+    document.addEventListener('mousemove', trackMousePosition);
+    
+    return () => {
+      document.removeEventListener('mousemove', trackMousePosition);
+    };
+  }, []);
 
   // Calculer la taille de police en fonction du texte
   const calculateFontSize = (text, width, height) => {
@@ -1914,42 +2029,101 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
 
           {/* Menu contextuel pour les formes */}
           <div
-            className="shapeMenu"
-            onMouseOver={() => menu(uuid)}
-            onMouseOut={() => {
-              if (!isOpen) document.querySelector(".shapeMenu").style.display = "none";
-            }}
-          >
-            <img src="/icons/policeIcon.png" onClick={() => manageInput()} alt="Text" />
-            <div id="ddc">
-              <PopoverPicker
-                color={color}
-                isOpen={isOpen}
-                setIsOpen={setIsOpen}
-              />
-            </div>
-            <img onClick={() => deleteElement()} src="/icons/trash.png" alt="Delete" />
-          </div>
+  className="shapeMenu"
+  onMouseEnter={() => {
+    // Garder le menu visible quand la souris entre
+    const shapeMenu = document.querySelector(".shapeMenu");
+    if (shapeMenu) {
+      shapeMenu.style.display = "flex";
+    }
+  }}
+  onMouseLeave={() => {
+    // Ne pas cacher immédiatement, vérifier si la souris est toujours dans la zone après
+    if (!isOpen) {
+      setTimeout(() => {
+        // Vérifier si la souris est dans la pseudo-zone :after avant de cacher
+        const mousePos = window.mousePosition || { x: 0, y: 0 };
+        const shapeMenu = document.querySelector(".shapeMenu");
+        if (shapeMenu) {
+          const rect = shapeMenu.getBoundingClientRect();
+          const afterRect = {
+            left: rect.left,
+            top: rect.bottom,
+            width: parseInt(style.width) || 100,
+            height: 20,
+            right: rect.left + (parseInt(style.width) || 100),
+            bottom: rect.bottom + 20
+          };
+          
+          // Cacher seulement si la souris n'est pas dans la zone after
+          if (
+            mousePos.x < afterRect.left || 
+            mousePos.x > afterRect.right || 
+            mousePos.y < afterRect.top || 
+            mousePos.y > afterRect.bottom
+          ) {
+            shapeMenu.style.display = "none";
+          }
+        }
+      }, 100);
+    }
+  }}
+>
+  <img src="/icons/policeIcon.png" onClick={() => [manageInput(), console.log('fedz')]} alt="Text" />
+  <div id="ddc">
+    <PopoverPicker
+      color={color}
+      isOpen={isOpen}
+      setIsOpen={setIsOpen}
+    />
+  </div>
+  <img onClick={() => deleteElement()} src="/icons/trash.png" alt="Delete" />
+</div>
 
           {/* Rendu des éléments */}
           {elements
-            .filter((el) => el.id)
-            .map((elementStyle) => (
-              <div
-                onMouseUp={mouseIsUp}
-                onMouseOut={() => {
-                  if (!isOpen) document.querySelector(".shapeMenu").style.display = "none";
-                }}
-                onMouseOver={() => {
-                  if (!isDown && tool.tool < 6) {
-                    setColor(elementStyle.bgColor);
-                    setTimeout(() => { menu(elementStyle.id) }, 50);
-                  }
-                }}
-                id={elementStyle.id}
-                key={elementStyle.id}
-                className="shape-elementy"
-                onMouseDown={(e) => select(e, elementStyle.id)}
+  .filter((el) => el.id)
+  .map((elementStyle) => (
+    <div
+      onMouseUp={mouseIsUp}
+      onMouseEnter={() => {
+        if (!isDown && tool.tool < 6) {
+          setColor(elementStyle.bgColor);
+          // Montrer le menu avec un léger délai pour éviter les effets de clignotement
+          setTimeout(() => { 
+            menu(elementStyle.id);
+            // S'assurer que le menu est visible
+            const shapeMenu = document.querySelector(".shapeMenu");
+            if (shapeMenu) {
+              shapeMenu.style.display = "flex";
+            }
+          }, 50);
+        }
+      }}
+      onMouseLeave={(e) => {
+        // Ne pas cacher immédiatement, vérifier si la souris va vers le menu
+        setTimeout(() => {
+          const shapeMenu = document.querySelector(".shapeMenu");
+          if (shapeMenu && !isOpen) {
+            const menuRect = shapeMenu.getBoundingClientRect();
+            const mousePos = window.mousePosition || { x: 0, y: 0 };
+            
+            // Vérifier si la souris se dirige vers le menu
+            if (
+              mousePos.x < menuRect.left || 
+              mousePos.x > menuRect.right || 
+              mousePos.y < menuRect.top || 
+              mousePos.y > menuRect.bottom
+            ) {
+              shapeMenu.style.display = "none";
+            }
+          }
+        }, 100);
+      }}
+      id={elementStyle.id}
+      key={elementStyle.id}
+      className="shape-elementy"
+      onMouseDown={(e) => select(e, elementStyle.id)}
                 style={{
                   position: "absolute",
                   left: `${elementStyle.x}px`,
@@ -1958,7 +2132,7 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
                   height: `${elementStyle.height}px`,
                   borderRadius: elementStyle.radius,
                   border: elementStyle.border,
-                  background: elementStyle.type === 4 || elementStyle.type === 5
+                  background: elementStyle.type === 5
                     ? elementStyle.background
                     : elementStyle.bgColor,
                   transform: elementStyle.transform,
@@ -1987,7 +2161,7 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
                         ? ` ${elementStyle.transform.includes("rotate")
                           ? "rotate(-45deg)"
                           : elementStyle.transform.includes("skew")
-                            ? "skewX(15deg)"
+                            ? "skewX(-15deg)"
                             : ""
                         }`
                         : ""),
@@ -2016,7 +2190,7 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
       {isOpen && (
         <div
           onMouseLeave={() => {
-            document.querySelector(".shapeMenu").style.display = "none";
+            [document.querySelector(".shapeMenu").style.display = "none", console.log("out1")];
             setIsOpen(false);
           }}
           id="bbn"

@@ -113,6 +113,7 @@ a {
   background-color: #d6d5d5; 
   z-index: 1;
   border: 1px solid black 10%;
+  z-index: 1000;
 }
 .shapeMenu::after{
   content:"";
