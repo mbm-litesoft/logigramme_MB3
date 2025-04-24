@@ -1268,12 +1268,12 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
 
   const generateSvgBackgroundType3 = (fillColor) => {
     const validColor = formatHexColor(fillColor);
-    const svgString = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="2.9 2.9 23.2 23.8" preserveAspectRatio="none">
+    const svgString = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="2.9 2.9 23.8 23.8" preserveAspectRatio="none">
   <rect 
-    x="6.95" 
-    y="6.75" 
-    width="16" 
-    height="16" 
+    x="5.8" 
+    y="5.5" 
+    width="18" 
+    height="18" 
    fill="${validColor}"
     stroke="#2c3e50" 
     stroke-width="0.63" 
