@@ -61,9 +61,21 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
     height: 5000,
   });
 
-  
+
   // État du zoom
   const [nzoom, setNzoom] = useState("100%");
+
+  useEffect(() => {
+    const trackMousePosition = (e) => {
+      window.mousePosition = { x: e.clientX, y: e.clientY };
+    };
+
+    document.addEventListener('mousemove', trackMousePosition);
+
+    return () => {
+      document.removeEventListener('mousemove', trackMousePosition);
+    };
+  }, []);
 
   // Notification au parent quand le chargement est terminé
   useEffect(() => {
@@ -248,31 +260,31 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
           },
         ];
       } else if (shapeType === 3) {
-        // Losange - 4 points (aux sommets)
+        // Losange - 4 points (au milieu des côtés, pas aux sommets)
         positions = [
           {
-            side: "top-right",
-            top: "-10px",
-            right: "0",
-            transform: "translate(50%, 0)",
+            side: "top",
+            top: "-7%",
+            left: "50%",
+            transform: "translateX(-50%)",
           },
           {
-            side: "bottom-right",
-            bottom: "-10px",
-            right: "0",
-            transform: "translate(50%, 0)",
+            side: "right",
+            top: "50%",
+            right: "-7%",
+            transform: "translateY(-50%)",
           },
           {
-            side: "bottom-left",
-            bottom: "-10px",
-            left: "0",
-            transform: "translate(-50%, 0)",
+            side: "bottom",
+            bottom: "-7%",
+            left: "50%",
+            transform: "translateX(-50%)",
           },
           {
-            side: "top-left",
-            top: "-10px",
-            left: "0",
-            transform: "translate(-50%, 0)",
+            side: "left",
+            top: "50%",
+            left: "-7%",
+            transform: "translateY(-50%)",
           },
         ];
       } else {
@@ -407,22 +419,25 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
       // Points pour les losanges (rotation 45°)
       if (shapeType === 3) {
         switch (side) {
-          case "top-right":
-            x = centerX + rect.width / 2;
+          case "top":
+            x = centerX;
+            y = rect.top - containerRect.top;
+            break;
+          case "right":
+            x = rect.right - containerRect.left;
             y = centerY;
             break;
-          case "bottom-right":
+          case "bottom":
             x = centerX;
-            y = centerY + rect.height / 2;
+            y = rect.bottom - containerRect.top;
             break;
-          case "bottom-left":
-            x = centerX - rect.width / 2;
+          case "left":
+            x = rect.left - containerRect.left;
             y = centerY;
             break;
-          case "top-left":
+          default:
             x = centerX;
-            y = centerY - rect.height / 2;
-            break;
+            y = centerY;
         }
       } else {
         // Points standard pour les autres formes
@@ -783,6 +798,7 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
 
   // Gestion des clics sur les points de connexion
   const handleDotClick = (elementId, dot, side) => {
+
     if (!sourceElementRef.current) {
       // Premier clic - sélectionner le point de départ
       sourceElementRef.current = elementId;
@@ -825,6 +841,7 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
         updateLinesAndPropagate((prevLines) => [...prevLines, newLine]);
       }
 
+
       // Réinitialiser la sélection
       if (sourceDotRef.current) {
         sourceDotRef.current.style.backgroundColor = "#3498db";
@@ -833,7 +850,16 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
       sourceSideRef.current = null;
       sourceDotRef.current = null;
     }
+
   };
+  useEffect(() => {
+    if (lines && lines.length > 0) {
+      // Utiliser un court délai pour s'assurer que le DOM est à jour
+      setTimeout(() => {
+        updateSvgConnections();
+      }, 100);
+    }
+  }, [lines, updateSvgConnections]);
 
   // Création optimisée des points de la grille
   // Création optimisée des points de la grille
@@ -857,7 +883,7 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
     dotContainer.style.pointerEvents = "none";
     dotContainer.id = "dotsContainer";
 
- 
+
 
     // Récupérer les dimensions visibles
     const containerEl = containerRef.current;
@@ -961,45 +987,35 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
 
   // Fonction pour sélectionner un élément
   const select = (e, id) => {
-    // Trouver l'élément sélectionné
-    const element = elements.find(el => el.id === id);
-    
-    // Si c'est un losange (type 3), stockons sa position initiale
-    if (element && element.type === 3) {
-      // Stocker la position initiale de l'élément
-      window.losangeInitialX = element.x;
-      window.losangeInitialY = element.y;
-    }
-    
-    // Définir l'élément comme sélectionné
     setMouseIsDown(true);
     setUuid(id);
   };
 
+  // Fonction pour déplacer un élément
   const setElementPosition = (e) => {
     if (isDown && uuid !== null) {
       const el = elements.find((el) => el.id === uuid);
       if (!el) return;
-      
+
       // Calculer la nouvelle position
       const newX = parseInt(el.x) + e.movementX;
       const newY = parseInt(el.y) + e.movementY;
-  
+
       // Obtenir les dimensions de la zone de travail
       const containerRect = document.querySelector(".openDiv")?.getBoundingClientRect();
       if (!containerRect) return;
-  
+
       // Calculer les limites
       const maxX = canvasSize.width - el.width;
       const maxY = canvasSize.height - el.height;
-  
+
       // S'assurer que l'élément reste dans les limites
       const boundedX = Math.max(0, Math.min(newX, maxX));
       const boundedY = Math.max(0, Math.min(newY, maxY));
-  
+
       // Vérifier s'il y a une collision avec d'autres éléments
       const hasCollision = checkCollision(boundedX, boundedY, el.width, el.height, uuid);
-  
+
       if (!hasCollision) {
         // Mettre à jour la position si pas de collision
         updateElementsAndPropagate((prevElements) => {
@@ -1016,13 +1032,13 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
           });
         });
       }
-  
+
       // Optimisation: utiliser requestAnimationFrame pour mettre à jour les connexions
       if (lines.length > 0) {
         if (window.svgUpdateTimer) {
           cancelAnimationFrame(window.svgUpdateTimer);
         }
-  
+
         window.svgUpdateTimer = requestAnimationFrame(() => {
           updateSvgConnections();
         });
@@ -1077,7 +1093,14 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
           newShape = { ...newShape, type: 2, radius: "50%", transform: "" };
           break;
         case 3: // Losange
-          newShape = { ...newShape, type: 3, radius: "15%", transform: "rotate(45deg)" };
+          newShape = {
+            ...newShape,
+            type: 3,
+            radius: "0%",
+            transform: "",
+            background: generateSvgBackgroundType3("#ffffff"),
+            border: "none"
+          };
           break;
         case 4: // Parallélogramme
           newShape = {
@@ -1085,7 +1108,7 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
             type: 4,
             radius: "15%",
             transform: "skewX(15deg)",
-        
+
           };
           break;
         case 5: // Note
@@ -1243,16 +1266,26 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
     return color;
   }
 
-  // Génération du SVG pour le parallélogramme
-  const generateSvgBackgroundType4 = (fillColor) => {
+  const generateSvgBackgroundType3 = (fillColor) => {
     const validColor = formatHexColor(fillColor);
-    const svgString = `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="2.9 2.9 23.2 23.8" preserveAspectRatio="none">
-        <path d="M7 3 Q6.5 3 6.3 3.4 L4 26 Q4 26.6 4.6 26.6 H21 Q21.5 26.6 21.7 26.2 L24 3.6 Q24.1 3 23.5 3 Z" fill="${validColor}" stroke="#333333" stroke-width="0.63" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
-      </svg>
-    `;
-    return `url("data:image/svg+xml;utf8,${encodeURIComponent(svgString)}") center no-repeat`;
+    const svgString = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="2.9 2.9 23.2 23.8" preserveAspectRatio="none">
+  <rect 
+    x="6.95" 
+    y="6.75" 
+    width="16" 
+    height="16" 
+   fill="${validColor}"
+    stroke="#2c3e50" 
+    stroke-width="0.63" 
+    rx="2.4" 
+    ry="2.4"
+    transform="rotate(45, 14.5, 14.5)"
+    vector-effect="non-scaling-stroke"
+  />
+  </svg>`;
+    return `url("data:image/svg+xml;utf8,${encodeURIComponent(svgString)}")  no-repeat`;
   };
+
 
   // Génération du SVG pour la note
   const generateSvgBackgroundType5 = (fillColor) => {
@@ -1313,129 +1346,57 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
 
   // Gestion du relâchement de la souris
   const mouseIsUp = () => {
-  setMouseIsDown(false);
-  
-  // Nettoyer les variables temporaires
-  window.losangeInitialX = undefined;
-  window.losangeInitialY = undefined;
+    setMouseIsDown(false);
 
-  // Si l'outil d'alignement est actif, aligner à la grille
-  if (tool.tool === 0 && uuid) {
-    const reference = document.getElementById(uuid);
-    const dotContainer = document.querySelector("#dotsContainer");
+    // Si l'outil d'alignement est actif, aligner à la grille
+    if (tool.tool === 0 && uuid) {
+      const reference = document.getElementById(uuid);
+      const dotContainer = document.querySelector("#dotsContainer");
 
-    if (reference && dotContainer) {
-      const otherElements = Array.from(dotContainer.children);
-      const closest = findClosestElement(reference, otherElements);
+      if (reference && dotContainer) {
+        const otherElements = Array.from(dotContainer.children);
+        const closest = findClosestElement(reference, otherElements);
 
-      if (closest) {
-        // Aligner l'élément au point le plus proche
-        updateElementsAndPropagate((prevElements) => {
-          return prevElements.map((element) => {
-            if (element.id === uuid) {
-              return {
-                ...element,
-                x: closest.getAttribute("x"),
-                y: closest.getAttribute("y"),
-              };
-            } else {
-              return element;
-            }
+        if (closest) {
+          // Aligner l'élément au point le plus proche
+          updateElementsAndPropagate((prevElements) => {
+            return prevElements.map((element) => {
+              if (element.id === uuid) {
+                return {
+                  ...element,
+                  x: closest.getAttribute("x"),
+                  y: closest.getAttribute("y"),
+                };
+              } else {
+                return element;
+              }
+            });
           });
-        });
-      }
-    }
-  }
-
-  // Annuler les mises à jour d'animation en cours
-  if (window.svgUpdateTimer) {
-    cancelAnimationFrame(window.svgUpdateTimer);
-    window.svgUpdateTimer = null;
-  }
-
-  // Mettre à jour les connexions
-  if (lines.length > 0) {
-    setTimeout(() => {
-      updateSvgConnections();
-
-      // Réafficher les points de connexion en mode connexion
-      if (connectingMode) {
-        const shapes = document.querySelectorAll("[shape-type]");
-        shapes.forEach((element) => {
-          showConnectionPoints(element);
-        });
-      }
-    }, 50);
-  }
-};
-
-// Ajouter des gestionnaires spécifiques pour les éléments losange
-const addLosangeEventHandlers = () => {
-  // Chercher tous les losanges
-  const losanges = document.querySelectorAll('[shape-type="3"]');
-  
-  losanges.forEach(losange => {
-    // Ajouter un gestionnaire de clic sur le conteneur du losange
-    losange.addEventListener('mousedown', (e) => {
-      const elementId = losange.id;
-      // Stocker la position initiale
-      const element = elements.find(el => el.id === elementId);
-      if (element) {
-        window.losangeInitialX = element.x;
-        window.losangeInitialY = element.y;
-      }
-      // Empêcher la propagation pour éviter les comportements inattendus
-      e.stopPropagation();
-    }, { capture: true });
-    
-    // Ajouter un gestionnaire pour le textarea à l'intérieur du losange
-    const textarea = losange.querySelector('textarea');
-    if (textarea) {
-      textarea.addEventListener('mousedown', (e) => {
-        const elementId = losange.id;
-        const element = elements.find(el => el.id === elementId);
-        if (element) {
-          window.losangeInitialX = element.x;
-          window.losangeInitialY = element.y;
         }
-        // Ne pas arrêter la propagation ici pour permettre l'édition de texte
-      }, { capture: true });
+      }
     }
-  });
-};
 
-// Ajouter un effet pour mettre à jour les gestionnaires de losanges
-useEffect(() => {
-  // Si nous avons des éléments et qu'ils sont rendus
-  if (elements.length > 0) {
-    // Attendre que le DOM soit mis à jour
-    setTimeout(() => {
-      addLosangeEventHandlers();
-    }, 100);
-  }
-}, [elements]);
+    // Annuler les mises à jour d'animation en cours
+    if (window.svgUpdateTimer) {
+      cancelAnimationFrame(window.svgUpdateTimer);
+      window.svgUpdateTimer = null;
+    }
 
-// Initialiser les variables globales au chargement
-useEffect(() => {
-  window.losangeInitialX = undefined;
-  window.losangeInitialY = undefined;
-  
-  return () => {
-    window.losangeInitialX = undefined;
-    window.losangeInitialY = undefined;
+    // Mettre à jour les connexions
+    if (lines.length > 0) {
+      setTimeout(() => {
+        updateSvgConnections();
+
+        // Réafficher les points de connexion en mode connexion
+        if (connectingMode) {
+          const shapes = document.querySelectorAll("[shape-type]");
+          shapes.forEach((element) => {
+            showConnectionPoints(element);
+          });
+        }
+      }, 50);
+    }
   };
-}, []);
-  
-  // Vous pouvez également ajouter une initialisation au chargement du composant
-  useEffect(() => {
-    // Initialiser les variables globales pour le déplacement du losange
-    window.losangeFirstMove = false;
-    
-    return () => {
-      // Nettoyage à la démonter du composant
-      window.losangeFirstMove = undefined;
-    };
-  }, []);
 
   // Fonction pour redimensionner un élément
   const setDimensions = (e, active) => {
@@ -1519,8 +1480,8 @@ useEffect(() => {
           let updatedElement = { ...element, bgColor: color };
 
           // Générer un fond personnalisé pour les types spéciaux
-          if (element.type === 4) {
-            updatedElement.background = generateSvgBackgroundType4(color);
+          if (element.type === 3) {
+            updatedElement.background = generateSvgBackgroundType3(color);
           } else if (element.type === 5) {
             updatedElement.background = generateSvgBackgroundType5(color);
           }
@@ -1576,15 +1537,15 @@ useEffect(() => {
         // Récupérer l'élément dans le tableau pour connaître son type
         const elementData = elements.find(el => el.id === elementId);
         if (!elementData) return;
-  
+
         // Positionnement personnalisé selon le type de forme
         if (elementData.type === 3) { // Losange
           // Positionner le menu au centre du losange
-        
+
           const elementRect = element.getBoundingClientRect();
           const centerX = parseInt(element.style.left) + parseInt(element.style.width) / 2;
           const centerY = parseInt(element.style.top) + parseInt(element.style.height) / 2;
-          
+
           // Ajuster le positionnement du menu (centré horizontalement, au-dessus verticalement)
           shapeMenu.style.display = "flex";
           shapeMenu.style.left = `${centerX - 50}px`; // 50 = largeur du menu / 2
@@ -1595,7 +1556,7 @@ useEffect(() => {
           shapeMenu.style.left = `${parseInt(element.style.left) + parseInt(element.style.width) - 100}px`;
           shapeMenu.style.top = `${parseInt(element.style.top) - 45}px`;
         }
-  
+
         // Mise à jour des coordonnées pour le sélecteur de couleur
         const colorPicker = document.getElementById("ddc");
         if (colorPicker) {
@@ -1635,11 +1596,11 @@ useEffect(() => {
   const shapeStyleAfter = (width) => {
     const shapeMenu = document.querySelector(".shapeMenu");
     if (!shapeMenu) return;
-  
+
     // Créer une feuille de style dynamique
     const styleSheet = document.createElement("style");
     document.head.appendChild(styleSheet);
-  
+
     // Définir le style ::after avec une zone plus grande
     styleSheet.textContent = `
       .shapeMenu::after {
@@ -1652,16 +1613,16 @@ useEffect(() => {
         background-color: transparent;
         z-index: 10;
       }`;
-  
+
     shapeMenu.style.position = "relative";
   };
   useEffect(() => {
     const trackMousePosition = (e) => {
       window.mousePosition = { x: e.clientX, y: e.clientY };
     };
-    
+
     document.addEventListener('mousemove', trackMousePosition);
-    
+
     return () => {
       document.removeEventListener('mousemove', trackMousePosition);
     };
@@ -1836,7 +1797,7 @@ useEffect(() => {
         boxShadow: "0 2px 5px rgba(0,0,0,0.2)"
       }}>
         <button
-        disabled={nzoom === "10%"}
+          disabled={nzoom === "10%"}
           onClick={() => zoomFunc(1)}
           style={{
             width: "30px",
@@ -1859,7 +1820,7 @@ useEffect(() => {
         </div>
 
         <button
-        disabled={nzoom === "100%"}
+          disabled={nzoom === "100%"}
           onClick={() => zoomFunc(0)}
           style={{
             width: "30px",
@@ -2029,101 +1990,145 @@ useEffect(() => {
 
           {/* Menu contextuel pour les formes */}
           <div
-  className="shapeMenu"
-  onMouseEnter={() => {
-    // Garder le menu visible quand la souris entre
-    const shapeMenu = document.querySelector(".shapeMenu");
-    if (shapeMenu) {
-      shapeMenu.style.display = "flex";
-    }
-  }}
-  onMouseLeave={() => {
-    // Ne pas cacher immédiatement, vérifier si la souris est toujours dans la zone après
-    if (!isOpen) {
-      setTimeout(() => {
-        // Vérifier si la souris est dans la pseudo-zone :after avant de cacher
-        const mousePos = window.mousePosition || { x: 0, y: 0 };
-        const shapeMenu = document.querySelector(".shapeMenu");
-        if (shapeMenu) {
-          const rect = shapeMenu.getBoundingClientRect();
-          const afterRect = {
-            left: rect.left,
-            top: rect.bottom,
-            width: parseInt(style.width) || 100,
-            height: 20,
-            right: rect.left + (parseInt(style.width) || 100),
-            bottom: rect.bottom + 20
-          };
-          
-          // Cacher seulement si la souris n'est pas dans la zone after
-          if (
-            mousePos.x < afterRect.left || 
-            mousePos.x > afterRect.right || 
-            mousePos.y < afterRect.top || 
-            mousePos.y > afterRect.bottom
-          ) {
-            shapeMenu.style.display = "none";
-          }
-        }
-      }, 100);
-    }
-  }}
->
-  <img src="/icons/policeIcon.png" onClick={() => [manageInput(), console.log('fedz')]} alt="Text" />
-  <div id="ddc">
-    <PopoverPicker
-      color={color}
-      isOpen={isOpen}
-      setIsOpen={setIsOpen}
-    />
-  </div>
-  <img onClick={() => deleteElement()} src="/icons/trash.png" alt="Delete" />
-</div>
+            className="shapeMenu"
+            onMouseEnter={() => {
+              // Annuler tout timeout qui pourrait cacher le menu
+              if (window.hideMenuTimeout) {
+                clearTimeout(window.hideMenuTimeout);
+                window.hideMenuTimeout = null;
+              }
+
+              // S'assurer que le menu reste visible
+              const shapeMenu = document.querySelector(".shapeMenu");
+              if (shapeMenu) {
+                shapeMenu.style.display = "flex";
+              }
+            }}
+            onMouseLeave={() => {
+              // Ne pas cacher immédiatement
+              if (!isOpen) {
+                window.hideMenuTimeout = setTimeout(() => {
+                  const mousePos = window.mousePosition || { x: 0, y: 0 };
+                  const shapeMenu = document.querySelector(".shapeMenu");
+                  if (shapeMenu) {
+                    const rect = shapeMenu.getBoundingClientRect();
+                    const afterRect = {
+                      left: rect.left,
+                      top: rect.bottom,
+                      width: parseInt(style.width) || 100,
+                      height: 20,
+                      right: rect.left + (parseInt(style.width) || 100),
+                      bottom: rect.bottom + 20
+                    };
+
+                    // Vérifier si la souris est sur un élément
+                    const elementsUnderMouse = document.elementsFromPoint(mousePos.x, mousePos.y);
+                    const isMouseOnElement = elementsUnderMouse.some(el => el.classList.contains('shape-elementy'));
+
+                    // Cacher seulement si la souris n'est ni dans la zone after ni sur un élément
+                    if (
+                      !isMouseOnElement && (
+                        mousePos.x < afterRect.left ||
+                        mousePos.x > afterRect.right ||
+                        mousePos.y < afterRect.top ||
+                        mousePos.y > afterRect.bottom
+                      )
+                    ) {
+                      shapeMenu.style.display = "none";
+                    }
+                  }
+                }, 300);
+              }
+            }}
+          >
+            <img src="/icons/policeIcon.png" onClick={() => [manageInput(), console.log('fedz')]} alt="Text" />
+            <div id="ddc">
+              <PopoverPicker
+                color={color}
+                isOpen={isOpen}
+                setIsOpen={setIsOpen}
+              />
+            </div>
+            <img onClick={() => deleteElement()} src="/icons/trash.png" alt="Delete" />
+          </div>
 
           {/* Rendu des éléments */}
           {elements
-  .filter((el) => el.id)
-  .map((elementStyle) => (
-    <div
-      onMouseUp={mouseIsUp}
-      onMouseEnter={() => {
-        if (!isDown && tool.tool < 6) {
-          setColor(elementStyle.bgColor);
-          // Montrer le menu avec un léger délai pour éviter les effets de clignotement
-          setTimeout(() => { 
-            menu(elementStyle.id);
-            // S'assurer que le menu est visible
-            const shapeMenu = document.querySelector(".shapeMenu");
-            if (shapeMenu) {
-              shapeMenu.style.display = "flex";
-            }
-          }, 50);
-        }
-      }}
-      onMouseLeave={(e) => {
-        // Ne pas cacher immédiatement, vérifier si la souris va vers le menu
-        setTimeout(() => {
-          const shapeMenu = document.querySelector(".shapeMenu");
-          if (shapeMenu && !isOpen) {
-            const menuRect = shapeMenu.getBoundingClientRect();
-            const mousePos = window.mousePosition || { x: 0, y: 0 };
-            
-            // Vérifier si la souris se dirige vers le menu
-            if (
-              mousePos.x < menuRect.left || 
-              mousePos.x > menuRect.right || 
-              mousePos.y < menuRect.top || 
-              mousePos.y > menuRect.bottom
-            ) {
-              shapeMenu.style.display = "none";
-            }
-          }
-        }, 100);
-      }}
-      id={elementStyle.id}
-      key={elementStyle.id}
-      className="shape-elementy"
-      onMouseDown={(e) => select(e, elementStyle.id)}
+            .filter((el) => el.id)
+            .map((elementStyle) => (
+              <div
+                onMouseUp={mouseIsUp}
+                onMouseEnter={() => {
+                  if (!isDown && tool.tool < 6) {
+                    setColor(elementStyle.bgColor);
+                    // Définir un flag ou un état indiquant que l'élément est survolé
+                    // Vous pouvez ajouter un état comme: const [hoveredElement, setHoveredElement] = useState(null);
+                    // et l'utiliser ici: setHoveredElement(elementStyle.id);
+
+                    // Supprimer tout timeout existant pour cacher le menu
+                    if (window.hideMenuTimeout) {
+                      clearTimeout(window.hideMenuTimeout);
+                      window.hideMenuTimeout = null;
+                    }
+
+                    // Montrer le menu immédiatement sans délai
+                    menu(elementStyle.id);
+                    const shapeMenu = document.querySelector(".shapeMenu");
+                    if (shapeMenu) {
+                      shapeMenu.style.display = "flex";
+                    }
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  // Utiliser un délai plus long avant de cacher le menu
+                  // Cela donnera plus de temps pour passer d'un élément à un autre
+                  window.hideMenuTimeout = setTimeout(() => {
+                    // Vérifier si le menu est ouvert ou si la souris est sur un autre élément
+                    const shapeMenu = document.querySelector(".shapeMenu");
+                    if (shapeMenu && !isOpen) {
+                      const mousePos = window.mousePosition || { x: 0, y: 0 };
+                      const menuRect = shapeMenu.getBoundingClientRect();
+
+                      // Vérifier si la souris est sur le menu
+                      const isMouseOnMenu =
+                        mousePos.x >= menuRect.left &&
+                        mousePos.x <= menuRect.right &&
+                        mousePos.y >= menuRect.top &&
+                        mousePos.y <= menuRect.bottom;
+
+                      // Vérifier si la souris est dans la zone after
+                      const afterRect = {
+                        left: menuRect.left,
+                        top: menuRect.bottom,
+                        width: parseInt(style.width) || 100,
+                        height: 20,
+                        right: menuRect.left + (parseInt(style.width) || 100),
+                        bottom: menuRect.bottom + 20
+                      };
+
+                      const isMouseOnAfter =
+                        mousePos.x >= afterRect.left &&
+                        mousePos.x <= afterRect.right &&
+                        mousePos.y >= afterRect.top &&
+                        mousePos.y <= afterRect.bottom;
+
+                      // Vérifier si la souris est sur un autre élément
+                      const elementsUnderMouse = document.elementsFromPoint(mousePos.x, mousePos.y);
+                      const isMouseOnAnotherElement = elementsUnderMouse.some(el =>
+                        el.classList.contains('shape-elementy') && el.id !== elementStyle.id
+                      );
+
+                      // Ne cacher le menu que si la souris n'est ni sur le menu, ni sur la zone after, ni sur un autre élément
+                      if (!isMouseOnMenu && !isMouseOnAfter && !isMouseOnAnotherElement) {
+                        shapeMenu.style.display = "none";
+                      }
+                    }
+                  }, 300); // Augmenter le délai à 300ms
+                }}
+                id={elementStyle.id}
+                key={elementStyle.id}
+                className="shape-elementy"
+                onMouseDown={(e) => select(e, elementStyle.id)}
                 style={{
                   position: "absolute",
                   left: `${elementStyle.x}px`,
@@ -2132,7 +2137,7 @@ useEffect(() => {
                   height: `${elementStyle.height}px`,
                   borderRadius: elementStyle.radius,
                   border: elementStyle.border,
-                  background: elementStyle.type === 5
+                  background: elementStyle.type === 5 || elementStyle.type === 3
                     ? elementStyle.background
                     : elementStyle.bgColor,
                   transform: elementStyle.transform,
@@ -2217,3 +2222,4 @@ useEffect(() => {
 });
 
 export default MainLogigramme;
+
