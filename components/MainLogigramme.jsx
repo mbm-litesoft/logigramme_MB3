@@ -1784,18 +1784,7 @@ const MainLogigramme = forwardRef(({ tool, onUuidChange, onDataChange, elements:
   // Composant pour les contrôles de zoom
   const ZoomControls = () => {
     return (
-      <div className="zoom-controls" style={{
-        position: "absolute",
-        bottom: "20px",
-        right: "20px",
-        zIndex: 1000,
-        display: "flex",
-        gap: "10px",
-        background: "rgba(255, 255, 255, 0.8)",
-        padding: "5px",
-        borderRadius: "5px",
-        boxShadow: "0 2px 5px rgba(0,0,0,0.2)"
-      }}>
+      <div className="zoom-controls">
         <button
           disabled={nzoom === "10%"}
           onClick={() => zoomFunc(1)}

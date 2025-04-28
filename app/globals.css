@@ -23,12 +23,14 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  -webkit-user-select: none;  /* Safari */
-  -ms-user-select: none;      /* IE et Edge */
-  user-select: none;      
+  -webkit-user-select: none;
+  /* Safari */
+  -ms-user-select: none;
+  /* IE et Edge */
+  user-select: none;
 }
 
-input{
+input {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -37,6 +39,7 @@ input{
   word-break: break-word;
   font-size: 14px;
 }
+
 * {
   box-sizing: border-box;
   padding: 0;
@@ -54,18 +57,20 @@ a {
   }
 }
 
-.fullHeight{
+.fullHeight {
   height: 100vh !important;
 }
 
 .scrollable {
-  overflow-y: auto; /* Permet le défilement vertical */
-  border: 1px solid #ccc; /* Pour visualiser le conteneur */
+  overflow-y: auto;
+  /* Permet le défilement vertical */
+  border: 1px solid #ccc;
+  /* Pour visualiser le conteneur */
   padding: 15px;
 }
 
 
-.maxHeight{
+.maxHeight {
   max-height: 100vh;
 }
 
@@ -86,12 +91,13 @@ a {
 #boxs::-webkit-scrollbar-thumb:hover {
   background: #555;
 }
+
 .container-fluid {
   overflow: hidden;
   height: 100vh;
 }
 
-#boxs .bg-info{
+#boxs .bg-info {
 
   position: absolute;
   right: 0;
@@ -103,35 +109,37 @@ a {
 
 }
 
-.shapeMenu{
+.shapeMenu {
   display: none;
   position: absolute;
   padding: 5px;
-  width:100px;
-  right:0;
+  width: 100px;
+  right: 0;
   height: 40px;
-  background-color: #d6d5d5; 
+  background-color: #d6d5d5;
   z-index: 1;
   border: 1px solid black 10%;
   z-index: 1000;
 }
-.shapeMenu::after{
-  content:"";
+
+.shapeMenu::after {
+  content: "";
   margin-top: 30px;
   margin-left: -90px;
   width: 100px;
   height: 20px;
- 
-} 
+
+}
+
 #boxs {
   width: 101%;
 }
 
-.zone::after{
-  content : "";
+.zone::after {
+  content: "";
   position: absolute;
   top: -9;
-  left:-8;
+  left: -8;
   margin: auto;
   width: 25px;
   height: 40px;
@@ -162,12 +170,29 @@ a {
 }
 
 
-.mainMenu{
+.mainMenu {
+  height: 7%;
   top: 5%;
   left: 50%;
-    transform: translate(-50%, 0);
-    z-index: 10000;
+  transform: translate(-50%, 0);
+  z-index: 10000;
+  background-color: #f7f7f7c9;
+  border: 2px solid rgb(194, 192, 192);
+  border-radius: 0.5rem;
 }
+
+.mainMenu div {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 20px;
+}
+
+
 
 /* Ajoutez ce code à votre fichier globals.css */
 
@@ -210,33 +235,34 @@ a {
   background-size: 100% 100%;
 } */
 
-.dotsMenu{
+.dotsMenu {
   color: black;
   font-size: 18px;
 }
 
-.sideDots{
+.sideDots {
   display: none;
 }
+
 #t1 {
   display: flex;
   font-size: 2rem;
 }
 
-.shape-elementy:after{
-content:"";
-display: flex;
-width:100%;
-height:100%;
-z-index: 2;
-position: absolute;
+.shape-elementy:after {
+  content: "";
+  display: flex;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  position: absolute;
 }
 
-.backgroundClick{
-position: absolute;
-width: 100%;
-height: 100%;
-background-color: red;
+.backgroundClick {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-color: red;
 }
 
 
@@ -249,7 +275,8 @@ background-color: red;
   height: 100% !important;
   background: white;
   overflow: auto;
-  will-change: scroll-position; /* Optimisation des performances de défilement */
+  will-change: scroll-position;
+  /* Optimisation des performances de défilement */
 }
 
 /* Style pour le conteneur de points */
@@ -258,7 +285,7 @@ background-color: red;
   top: 0;
   left: 0;
   width: 100%;
-  height: 100%; 
+  height: 100%;
   pointer-events: none;
 }
 
@@ -269,23 +296,25 @@ background-color: red;
   height: 3px;
   border-radius: 50%;
   pointer-events: auto;
-  will-change: transform; /* Optimisation des performances */
+  will-change: transform;
+  /* Optimisation des performances */
 }
 
 /* Styles pour contrôles de zoom */
 .zoom-controls {
   position: absolute;
   bottom: 20px;
-  right: 20px;
+  right: 30px;
   z-index: 1000;
   display: flex;
   gap: 10px;
-  background: rgba(255, 255, 255, 0.8);
-  padding: 5px 10px;
-  border-radius: 5px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  background-color: #d6d5d5;
+  border-radius: 10px;
+  padding: 10px 10px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
   user-select: none;
 }
+
 
 .zoom-controls button {
   display: flex;
@@ -319,7 +348,8 @@ background-color: red;
 /* Styles pour les formes pendant le zoom */
 .shape-elementy {
   transform-origin: 0 0;
-  will-change: transform; /* Optimisation des performances */
+  will-change: transform;
+  /* Optimisation des performances */
 }
 
 /* Styles pour les points de connexion */
