@@ -2,30 +2,28 @@ import React, { useCallback, useRef, useState, useEffect } from "react";
 import { HexColorPicker } from "react-colorful";
 import useClickOutside from "./useClickOutside";
 
-export const PopoverPicker = ({ color, onOpenChange, isOpen, setIsOpen }) => {
+export const PopoverPicker = ({ color, onChange }) => {
   const popover = useRef();
- const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
 
   const close = useCallback(() => {
     setIsOpen(false);
-    if (onOpenChange) onOpenChange(false);
-  }, [onOpenChange, setIsOpen]);
+  }, []);
 
   useClickOutside(popover, close);
-
-  // Effet pour notifier le parent de tout changement d'état
-  useEffect(() => {
-    if (onOpenChange) onOpenChange(isOpen);
-  }, [isOpen, onOpenChange]);
-
 
   return (
     <div className="picker">
       <div
         className="swatch"
         style={{ backgroundColor: color }}
-        onClick={() => [setIsOpen(true)]}
+        onClick={() => setIsOpen(true)}
       />
+      {isOpen && (
+        <div className="popover" ref={popover}>
+          <HexColorPicker color={color} onChange={onChange} />
+        </div>
+      )}
     </div>
   );
 };
