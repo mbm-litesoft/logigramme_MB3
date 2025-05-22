@@ -36,8 +36,9 @@ export default function Home() {
   // Effect to update menu visibility when an element is selected
   useEffect(() => {
     // Show menu only when an element is selected (uuid is not empty)
+
     setMenuVisible(!!uuid && tool.tool == 0);
-    console.log(menuVisible, "dd");
+
     // Update color from selected element if available
     if (uuid && elements.length > 0) {
       const selectedElement = elements.find((el) => el.id === uuid);
@@ -49,7 +50,6 @@ export default function Home() {
 
   // Callback function to receive UUID from child component
   const handleUuidChange = (newUuid) => {
-    console.log("UUID received from child component:", newUuid);
     setUuid(newUuid);
   };
 
@@ -390,15 +390,13 @@ export default function Home() {
       )}
 
       {/* Element editing menu - Always present but only visible when an element is selected */}
-       
+
       <div
         className={`mainMenu2 p-0 row position-absolute ${
           menuVisible ? "visible" : "invisible"
-        }`} 
+        }`}
       >
         <div className="d-flex text-light menu">
-         
-
           {/* Fond Color */}
           <div className="d-flex flex-column align-items-center mx-1">
             <PopoverPicker
@@ -413,7 +411,6 @@ export default function Home() {
 
           {/* Border Color */}
           <div className="d-flex flex-column align-items-center mx-1 ">
-            
             <PopoverPicker
               color={
                 elements.find((el) => el.id === uuid)?.borderColor || "#808080"
@@ -425,7 +422,6 @@ export default function Home() {
 
           {/* Opacity Slider */}
           <div className="d-flex flex-column align-items-center mx-1">
-            
             <input
               type="range"
               min="0.1"
@@ -439,7 +435,7 @@ export default function Home() {
             <small style={{ fontSize: "10px", color: "#888" }}>Opacité</small>
           </div>
           <span className="line"></span>
-{/* Text Button */}
+          {/* Text Button */}
           <img
             src="/icons/addTextIcon.png"
             onClick={manageInput}
@@ -513,7 +509,6 @@ export default function Home() {
           <span className="line"></span>
           {/* Delete Button */}
           <img
-            
             onClick={deleteElement}
             src="/icons/trash.png"
             alt="Delete"

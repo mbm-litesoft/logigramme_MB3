@@ -149,12 +149,12 @@ a {
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
 }
 
-.mainMenu2{
+.mainMenu2 {
   width: 70px !important;
   height: 500px;
   top: 5%;
   left: 3%;
-  
+
   transform: translate(-50%, 0);
   z-index: 10000;
   background-color: #F2F2F2;
@@ -163,13 +163,15 @@ a {
   opacity: 90%;
 
 }
-.line{
+
+.line {
   background-color: #0a0a0a;
   width: 40px;
   height: 1px;
   margin: 10px auto
 }
-.mainMenu2 div{
+
+.mainMenu2 div {
   display: flex;
   flex-direction: column;
 }
@@ -207,11 +209,12 @@ a {
   height: 16px;
 }
 
-.pictoColorBleu{
-color: #3AA4E6;
+.pictoColorBleu {
+  color: #3AA4E6;
 }
-.pictoColorGray{
-color: #A9A9A9;
+
+.pictoColorGray {
+  color: #A9A9A9;
 }
 
 /* Ajoutez ce code à votre fichier globals.css */
@@ -322,7 +325,7 @@ color: #A9A9A9;
 
 /* Styles pour contrôles de zoom */
 .zoom-controls {
- color:rgb(38, 0, 255);
+  color: rgb(38, 0, 255);
   display: flex;
   border-radius: 10px;
   margin-right: 100px;
