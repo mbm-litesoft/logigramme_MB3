@@ -77,17 +77,15 @@ const MainLogigramme = forwardRef(
     const [deletingElements, setDeletingElements] = useState(new Set());
 
     const isDraggingRef = useRef(false);
-const draggedElementRef = useRef(null);
-const [tempPosition, setTempPosition] = useState(null);
-const updateConnectionsTimeoutRef = useRef(null);
+    const draggedElementRef = useRef(null);
+    const [tempPosition, setTempPosition] = useState(null);
+    const updateConnectionsTimeoutRef = useRef(null);
+    
     // Taille du canvas
     const [canvasSize] = useState({
       width: 5000,
       height: 5000,
     });
-
-
-    
 
     // Notification au parent quand le chargement est terminé
     useEffect(() => {
@@ -128,8 +126,6 @@ const updateConnectionsTimeoutRef = useRef(null);
       }
     }, [uuid, onUuidChange]);
 
-
-
     // Effet qui se déclenche quand la prop tool change
     useEffect(() => {
       if (tool.tool === 6 || tool.tool === 7 || tool.tool === 8) {
@@ -139,8 +135,6 @@ const updateConnectionsTimeoutRef = useRef(null);
             showConnectionPoints(element);
           });
           setConnectingMode(true);
-          // ✅ SUPPRIMER cet appel - c'est géré par le useEffect centralisé
-          // updateSvgConnectionsWithLines(lines, elements);
         }, 100);
       } else {
         const dots = document.querySelectorAll(".connection-dot");
@@ -150,7 +144,6 @@ const updateConnectionsTimeoutRef = useRef(null);
         setConnectingMode(false);
       }
     }, [tool]);
-
 
     // Gestionnaire mouseup global amélioré
     useEffect(() => {
@@ -169,11 +162,6 @@ const updateConnectionsTimeoutRef = useRef(null);
         document.removeEventListener("mouseup", handleGlobalMouseUp);
       };
     }, [isDown]);
-
-    // Fonction pour mettre à jour les connexions SVG avec des lignes spécifiques
-
-
-
 
     // Réagir aux changements de zoom
     useEffect(() => {
@@ -198,8 +186,6 @@ const updateConnectionsTimeoutRef = useRef(null);
           setElements((prevElements) => {
             const newElements = updaterFn(prevElements);
 
-
-
             if (!isInitialRender.current) {
               if (propSetElements) propSetElements(newElements);
               if (onDataChange) onDataChange(newElements, lines);
@@ -208,8 +194,6 @@ const updateConnectionsTimeoutRef = useRef(null);
           });
         } else {
           setElements(updaterFn);
-
-
 
           if (!isInitialRender.current) {
             if (propSetElements) propSetElements(updaterFn);
@@ -227,8 +211,6 @@ const updateConnectionsTimeoutRef = useRef(null);
           setLines((prevLines) => {
             const newLines = updaterFn(prevLines);
 
-
-
             if (!isInitialRender.current) {
               if (propSetLines) propSetLines(newLines);
               if (onDataChange) onDataChange(elements, newLines);
@@ -237,8 +219,6 @@ const updateConnectionsTimeoutRef = useRef(null);
           });
         } else {
           setLines(updaterFn);
-
-
 
           if (!isInitialRender.current) {
             if (propSetLines) propSetLines(updaterFn);
@@ -560,9 +540,6 @@ const updateConnectionsTimeoutRef = useRef(null);
       tempPosition // Ajouter tempPosition pour recalculer pendant le déplacement
     ]);
 
-
-
-
     useEffect(() => {
       console.log('🔄 Mise à jour SVG connections depuis useMemo');
       setSvgConnections(connectionData);
@@ -571,18 +548,14 @@ const updateConnectionsTimeoutRef = useRef(null);
     useEffect(() => {
       if (uuid) {
         console.log('🎯 Élément sélectionné:', uuid);
-        // Ne pas déclencher de mise à jour des connexions ici
       }
     }, [uuid]);
 
     const deleteElement = useCallback((elementId) => {
-
       if (deletingElements.has(elementId)) return;
 
       const linesToKeep = lines.filter(line => line.source !== elementId && line.target !== elementId);
       const elementsToKeep = elements.filter(el => el.id !== elementId);
-
-
 
       setElements(elementsToKeep);
       setLines(linesToKeep);
@@ -592,7 +565,6 @@ const updateConnectionsTimeoutRef = useRef(null);
         if (propSetLines) propSetLines(linesToKeep);
         if (onDataChange) onDataChange(elementsToKeep, linesToKeep);
       }
-
     }, [elements, lines, deletingElements, propSetElements, propSetLines, onDataChange, isInitialRender]);
 
     useImperativeHandle(ref, () => ({
@@ -602,9 +574,10 @@ const updateConnectionsTimeoutRef = useRef(null);
       },
       createDotPattern,
       setTextElement,
-      deleteElement, // Exposer la fonction de suppression
+      deleteElement,
     }));
-    // CORRECTION SUPPRESSION: Gestionnaire de suppression avec Delete - avec dépendances correctes
+
+    // Gestionnaire de suppression avec Delete
     useEffect(() => {
       const handleKeyDown = (e) => {
         if (e.key === 'Delete' && uuid && !deletingElements.has(uuid)) {
@@ -616,7 +589,6 @@ const updateConnectionsTimeoutRef = useRef(null);
       document.addEventListener('keydown', handleKeyDown);
       return () => document.removeEventListener('keydown', handleKeyDown);
     }, [uuid, deleteElement, deletingElements]);
-
 
     // Fonction pour créer et afficher les points de connexion
     const showConnectionPoints = (element) => {
@@ -793,45 +765,89 @@ const updateConnectionsTimeoutRef = useRef(null);
       }
     };
 
-
-
     // Fonction pour mettre à jour les connexions SVG
     const updateSvgConnections = useCallback(() => {
       console.log('🔄 updateSvgConnections appelée (mais gérée par useMemo)');
       // Ne rien faire - tout est géré par le useMemo
     }, []);
 
-    // Amélioration du déplacement avec liaisons
+    const findClosestDot = (x, y, dots) => {
+      let closestDot = null;
+      let minDistance = Infinity;
+      
+      dots.forEach((dot) => {
+        const dotX = parseInt(dot.getAttribute("x"));
+        const dotY = parseInt(dot.getAttribute("y"));
+        
+        const distance = Math.sqrt(
+          Math.pow(x - dotX, 2) + Math.pow(y - dotY, 2)
+        );
+        
+        if (distance < minDistance && distance < 25) { // Seuil de 25px
+          minDistance = distance;
+          closestDot = dot;
+        }
+      });
+      
+      return closestDot;
+    };
 
-    // 2. Corriger setElementPosition pour éviter les conflits
-    const setElementPosition = (e) => {
-      if (!isDraggingRef.current || !draggedElementRef.current) return;
-    
+    // ✅ FONCTIONS DÉFINIES AVEC useCallback - ORDRE IMPORTANT
+    const setElementPosition = useCallback((e) => {
+      if (!isDraggingRef.current || !draggedElementRef.current) {
+        console.log('❌ Conditions non remplies:', {
+          isDragging: isDraggingRef.current,
+          draggedElement: draggedElementRef.current
+        });
+        return;
+      }
+
       const el = elements.find((el) => el.id === draggedElementRef.current);
-      if (!el) return;
-    
+      if (!el) {
+        console.log('❌ Élément non trouvé:', draggedElementRef.current);
+        return;
+      }
+
       // S'assurer que les positions sont des nombres
       const currentX = typeof el.x === 'number' ? el.x : parseInt(el.x) || 0;
       const currentY = typeof el.y === 'number' ? el.y : parseInt(el.y) || 0;
       
-      const newX = currentX + e.movementX;
-      const newY = currentY + e.movementY;
-    
-      console.log('🔄 Déplacement:', {
+      let deltaX = 0;
+      let deltaY = 0;
+      
+      // Utiliser movementX/Y directement
+      if (e.movementX !== undefined && e.movementY !== undefined) {
+        deltaX = e.movementX;
+        deltaY = e.movementY;
+      } else if (dragStartMousePosition.current) {
+        // Fallback
+        deltaX = e.clientX - dragStartMousePosition.current.x;
+        deltaY = e.clientY - dragStartMousePosition.current.y;
+        dragStartMousePosition.current = { x: e.clientX, y: e.clientY };
+      } else {
+        dragStartMousePosition.current = { x: e.clientX, y: e.clientY };
+        return;
+      }
+      
+      const newX = currentX + deltaX;
+      const newY = currentY + deltaY;
+
+      console.log('🔄 Calcul déplacement:', {
         elementId: el.id,
-        currentPos: { x: currentX, y: currentY },
-        movement: { x: e.movementX, y: e.movementY },
-        newPos: { x: newX, y: newY }
+        current: { x: currentX, y: currentY },
+        delta: { x: deltaX, y: deltaY },
+        new: { x: newX, y: newY }
       });
-    
+
       // Mettre à jour la position temporaire
       setTempPosition({ id: el.id, x: newX, y: newY });
       
-      // Mettre à jour le DOM directement pour un mouvement fluide
+      // Mettre à jour le DOM directement
       const domElement = document.getElementById(el.id);
       if (domElement) {
         domElement.style.left = `${newX}px`;
         domElement.style.top = `${newY}px`;
+        console.log('✅ DOM mis à jour');
       }
       
       // Débouncer la mise à jour des données
@@ -853,10 +869,220 @@ const updateConnectionsTimeoutRef = useRef(null);
           });
         });
       }, 50);
-    };
+    }, [elements, updateElementsAndPropagate]);
 
+    const setDimensions = useCallback((e, active) => {
+      if (
+        (isDown && tool.tool !== 0 && tool.tool < 6 && tool.tool != -1) ||
+        active
+      ) {
+        const number = 25;
 
+        if (tool.tool === 2 || tool.tool === 3) {
+          if (e.movementX > 0 || e.movementY > 0) {
+            setStyle((prevStyle) => ({
+              ...prevStyle,
+              width: prevStyle.width + number,
+              height: prevStyle.width + number,
+            }));
+          } else if (e.movementX < 0 || e.movementY < 0) {
+            setStyle((prevStyle) => ({
+              ...prevStyle,
+              width: Math.max(20, prevStyle.width - number),
+              height: Math.max(20, prevStyle.width - number),
+            }));
+          }
+        } else if (tool.tool === 1 || tool.tool === 4 || tool.tool === 5) {
+          if (e.movementX > 0) {
+            setStyle((prevStyle) => ({
+              ...prevStyle,
+              width: prevStyle.width + number,
+            }));
+          } else if (e.movementX < 0) {
+            setStyle((prevStyle) => ({
+              ...prevStyle,
+              width: Math.max(20, prevStyle.width - number),
+            }));
+          }
 
+          if (e.movementY > 0) {
+            setStyle((prevStyle) => ({
+              ...prevStyle,
+              height: prevStyle.height + number,
+            }));
+          } else if (e.movementY < 0) {
+            setStyle((prevStyle) => ({
+              ...prevStyle,
+              height: Math.max(20, prevStyle.height - number),
+            }));
+          }
+        }
+
+        updateElementsAndPropagate((prevElements) => {
+          return prevElements.map((element) => {
+            if (element.id === uuid) {
+              return {
+                ...element,
+                width: style.width,
+                height: style.height,
+              };
+            } else {
+              return element;
+            }
+          });
+        });
+      }
+    }, [isDown, tool.tool, uuid, style.width, style.height, updateElementsAndPropagate]);
+
+    const mouseIsUp = useCallback(() => {
+      console.log('🔴 MouseUp - État:', {
+        isDragging: isDraggingRef.current,
+        draggedElement: draggedElementRef.current,
+        isDown: isDown
+      });
+
+      const wasDragging = isDraggingRef.current;
+      const draggedId = draggedElementRef.current;
+      
+      // Réinitialiser TOUS les états
+      setMouseIsDown(false);
+      isDraggingRef.current = false;
+      
+      // Si on était en train de déplacer
+      if (wasDragging && draggedId) {
+        console.log('🏁 Fin du déplacement');
+        
+        // Annuler le timeout de mise à jour
+        if (updateConnectionsTimeoutRef.current) {
+          clearTimeout(updateConnectionsTimeoutRef.current);
+          updateConnectionsTimeoutRef.current = null;
+        }
+        
+        // Position finale à appliquer
+        let finalX, finalY;
+        
+        // Utiliser tempPosition si disponible
+        if (tempPosition && tempPosition.id === draggedId) {
+          finalX = tempPosition.x;
+          finalY = tempPosition.y;
+        } else {
+          // Sinon récupérer depuis le DOM
+          const domElement = document.getElementById(draggedId);
+          if (domElement) {
+            finalX = parseInt(domElement.style.left) || 0;
+            finalY = parseInt(domElement.style.top) || 0;
+          }
+        }
+        
+        // Appliquer le magnétisme à la grille
+        if (finalX !== undefined && finalY !== undefined) {
+          const dotsContainer = document.getElementById("dotsContainer");
+          
+          if (dotsContainer) {
+            const dots = Array.from(dotsContainer.children);
+            const closest = findClosestDot(finalX, finalY, dots);
+            
+            if (closest) {
+              finalX = parseInt(closest.getAttribute("x"));
+              finalY = parseInt(closest.getAttribute("y"));
+              console.log('🧲 Magnétisme appliqué:', { x: finalX, y: finalY });
+            }
+          }
+          
+          // Mise à jour finale et immédiate
+          updateElementsAndPropagate((prevElements) => {
+            return prevElements.map((element) => {
+              if (element.id === draggedId) {
+                console.log('✅ Position finale:', { id: draggedId, x: finalX, y: finalY });
+                return {
+                  ...element,
+                  x: finalX,
+                  y: finalY,
+                };
+              }
+              return element;
+            });
+          });
+        }
+      }
+      
+      // Nettoyer TOUS les états temporaires
+      setTempPosition(null);
+      draggedElementRef.current = null;
+      initialDragPosition.current = null;
+      dragStartMousePosition.current = null;
+    }, [isDown, tempPosition, updateElementsAndPropagate]);
+
+    const select = useCallback((e, id) => {
+      e.stopPropagation();
+      e.preventDefault();
+
+      console.log('🎯 Select élément:', id, 'Tool:', tool.tool);
+
+      setUuid(id);
+      
+      if (tool.tool === 0) {
+        console.log('🚀 Début du déplacement pour:', id);
+        
+        // Mode déplacement
+        setMouseIsDown(true);
+        isDraggingRef.current = true;
+        draggedElementRef.current = id;
+        
+        // Initialiser la position de la souris
+        dragStartMousePosition.current = { x: e.clientX, y: e.clientY };
+        
+        // Stocker la position initiale de l'élément
+        const element = elements.find(el => el.id === id);
+        if (element) {
+          initialDragPosition.current = {
+            x: typeof element.x === 'number' ? element.x : parseInt(element.x) || 0,
+            y: typeof element.y === 'number' ? element.y : parseInt(element.y) || 0
+          };
+          console.log('📍 Position initiale:', initialDragPosition.current);
+        }
+      }
+    }, [tool.tool, elements]);
+
+    // ✅ GESTIONNAIRES GLOBAUX AVEC BONNES DÉPENDANCES
+    useEffect(() => {
+      const handleGlobalMouseMove = (e) => {
+        console.log('🖱️ Mouse move détecté:', {
+          isDragging: isDraggingRef.current,
+          draggedElement: draggedElementRef.current,
+          tool: tool.tool,
+          isDown: isDown
+        });
+        
+        if (isDraggingRef.current && tool.tool === 0 && draggedElementRef.current) {
+          console.log('🖱️ Déplacement en cours');
+          setElementPosition(e);
+        } else if (isDown && tool.tool !== 0 && tool.tool < 6) {
+          console.log('🖱️ Redimensionnement en cours');
+          setDimensions(e, false);
+        }
+      };
+
+      const handleGlobalMouseUp = () => {
+        console.log('🖱️ Mouse up détecté:', {
+          isDragging: isDraggingRef.current,
+          isDown: isDown
+        });
+        
+        if (isDraggingRef.current || isDown) {
+          mouseIsUp();
+        }
+      };
+
+      // Attacher les événements
+      document.addEventListener("mousemove", handleGlobalMouseMove, { passive: false });
+      document.addEventListener("mouseup", handleGlobalMouseUp, { passive: false });
+
+      return () => {
+        document.removeEventListener("mousemove", handleGlobalMouseMove);
+        document.removeEventListener("mouseup", handleGlobalMouseUp);
+      };
+    }, [tool.tool, isDown, setElementPosition, setDimensions, mouseIsUp]);
 
     const handleDotClick = (elementId, dot, side) => {
       if (!sourceElementRef.current) {
@@ -1018,33 +1244,6 @@ const updateConnectionsTimeoutRef = useRef(null);
       });
     };
 
-    // CORRECTION DÉPLACEMENT: Fonction select qui évite les conflits avec les formes transformées
-    const select = (e, id) => {
-      e.stopPropagation();
-      e.preventDefault();
-    
-      console.log('🎯 Select élément:', id, 'Tool:', tool.tool);
-    
-      setUuid(id);
-      
-      if (tool.tool === 0) {
-        // Mode déplacement
-        setMouseIsDown(true);
-        isDraggingRef.current = true;
-        draggedElementRef.current = id;
-        
-        // Stocker la position initiale
-        const element = elements.find(el => el.id === id);
-        if (element) {
-          initialDragPosition.current = {
-            x: typeof element.x === 'number' ? element.x : parseInt(element.x) || 0,
-            y: typeof element.y === 'number' ? element.y : parseInt(element.y) || 0
-          };
-        }
-      }
-    };
-  
-
     // Nettoyage automatique des connexions orphelines
     const cleanupConnections = useCallback(() => {
       if (elements.length === 0) return;
@@ -1061,13 +1260,10 @@ const updateConnectionsTimeoutRef = useRef(null);
 
       setLines(cleaned);
 
-
-
       if (!isInitialRender.current) {
         if (propSetLines) propSetLines(cleaned);
         if (onDataChange) onDataChange(elements, cleaned);
       }
-
     }, [elements, lines, propSetLines, onDataChange, isInitialRender]);
 
     // Fonction mouseIsDown améliorée
@@ -1255,166 +1451,6 @@ const updateConnectionsTimeoutRef = useRef(null);
 
       return closestElement;
     };
-    const findClosestDot = (x, y, dots) => {
-      let closestDot = null;
-      let minDistance = Infinity;
-      
-      dots.forEach((dot) => {
-        const dotX = parseInt(dot.getAttribute("x"));
-        const dotY = parseInt(dot.getAttribute("y"));
-        
-        const distance = Math.sqrt(
-          Math.pow(x - dotX, 2) + Math.pow(y - dotY, 2)
-        );
-        
-        if (distance < minDistance && distance < 25) { // Seuil de 25px
-          minDistance = distance;
-          closestDot = dot;
-        }
-      });
-      
-      return closestDot;
-    };
-
-    const mouseIsUp = () => {
-      console.log('🔴 MouseUp - État du drag:', {
-        isDragging: isDraggingRef.current,
-        draggedElement: draggedElementRef.current,
-        tempPosition: tempPosition
-      });
-    
-      const wasDragging = isDraggingRef.current;
-      const draggedId = draggedElementRef.current;
-      
-      // Réinitialiser les états de déplacement
-      setMouseIsDown(false);
-      isDraggingRef.current = false;
-      
-      // Si on était en train de déplacer
-      if (wasDragging && draggedId) {
-        // Annuler le timeout de mise à jour
-        if (updateConnectionsTimeoutRef.current) {
-          clearTimeout(updateConnectionsTimeoutRef.current);
-          updateConnectionsTimeoutRef.current = null;
-        }
-        
-        // Position finale à appliquer
-        let finalX, finalY;
-        
-        // Utiliser tempPosition si disponible, sinon position DOM
-        if (tempPosition && tempPosition.id === draggedId) {
-          finalX = tempPosition.x;
-          finalY = tempPosition.y;
-        } else {
-          const domElement = document.getElementById(draggedId);
-          if (domElement) {
-            finalX = parseInt(domElement.style.left) || 0;
-            finalY = parseInt(domElement.style.top) || 0;
-          }
-        }
-        
-        // Appliquer le magnétisme à la grille si activé
-        if (tool.tool === 0 && finalX !== undefined && finalY !== undefined) {
-          const dotsContainer = document.getElementById("dotsContainer");
-          const reference = document.getElementById(draggedId);
-          
-          if (reference && dotsContainer) {
-            const dots = Array.from(dotsContainer.children);
-            const closest = findClosestDot(finalX, finalY, dots);
-            
-            if (closest) {
-              finalX = parseInt(closest.getAttribute("x"));
-              finalY = parseInt(closest.getAttribute("y"));
-              console.log('🧲 Magnétisme appliqué:', { x: finalX, y: finalY });
-            }
-          }
-        }
-        
-        // Mise à jour finale de la position
-        if (finalX !== undefined && finalY !== undefined) {
-          updateElementsAndPropagate((prevElements) => {
-            return prevElements.map((element) => {
-              if (element.id === draggedId) {
-                console.log('✅ Position finale appliquée:', { id: draggedId, x: finalX, y: finalY });
-                return {
-                  ...element,
-                  x: finalX,
-                  y: finalY,
-                };
-              }
-              return element;
-            });
-          });
-        }
-        
-        // Nettoyer les états temporaires
-        setTempPosition(null);
-        draggedElementRef.current = null;
-        initialDragPosition.current = null;
-      }
-    };
-    const setDimensions = (e, active) => {
-      if (
-        (isDown && tool.tool !== 0 && tool.tool < 6 && tool.tool != -1) ||
-        active
-      ) {
-        const number = 25;
-
-        if (tool.tool === 2 || tool.tool === 3) {
-          if (e.movementX > 0 || e.movementY > 0) {
-            setStyle((prevStyle) => ({
-              ...prevStyle,
-              width: prevStyle.width + number,
-              height: prevStyle.width + number,
-            }));
-          } else if (e.movementX < 0 || e.movementY < 0) {
-            setStyle((prevStyle) => ({
-              ...prevStyle,
-              width: Math.max(20, prevStyle.width - number),
-              height: Math.max(20, prevStyle.width - number),
-            }));
-          }
-        } else if (tool.tool === 1 || tool.tool === 4 || tool.tool === 5) {
-          if (e.movementX > 0) {
-            setStyle((prevStyle) => ({
-              ...prevStyle,
-              width: prevStyle.width + number,
-            }));
-          } else if (e.movementX < 0) {
-            setStyle((prevStyle) => ({
-              ...prevStyle,
-              width: Math.max(20, prevStyle.width - number),
-            }));
-          }
-
-          if (e.movementY > 0) {
-            setStyle((prevStyle) => ({
-              ...prevStyle,
-              height: prevStyle.height + number,
-            }));
-          } else if (e.movementY < 0) {
-            setStyle((prevStyle) => ({
-              ...prevStyle,
-              height: Math.max(20, prevStyle.height - number),
-            }));
-          }
-        }
-
-        updateElementsAndPropagate((prevElements) => {
-          return prevElements.map((element) => {
-            if (element.id === uuid) {
-              return {
-                ...element,
-                width: style.width,
-                height: style.height,
-              };
-            } else {
-              return element;
-            }
-          });
-        });
-      }
-    };
 
     const setTextElement = () => {
       const el = document.getElementById("input" + uuid);
@@ -1463,13 +1499,6 @@ const updateConnectionsTimeoutRef = useRef(null);
       <div style={{ flex: "auto" }}>
         <div
           id="boxs"
-          onMouseMove={(e) => {
-            if (isDraggingRef.current && tool.tool === 0) {
-              setElementPosition(e);
-            } else if (isDown && tool.tool !== 0 && tool.tool < 6) {
-              setDimensions(e, false);
-            }
-          }}
           className="col"
           style={{
             padding: "15px",
@@ -1515,8 +1544,8 @@ const updateConnectionsTimeoutRef = useRef(null);
                 position: "absolute",
                 top: 0,
                 left: 0,
-                width: `${canvasSize.width}px`,    // ✅ Taille complète du canvas
-                height: `${canvasSize.height}px`,  // ✅ Taille complète du canvas
+                width: `${canvasSize.width}px`,
+                height: `${canvasSize.height}px`,
                 pointerEvents: "none",
                 zIndex: 9000,
               }}
@@ -1602,7 +1631,6 @@ const updateConnectionsTimeoutRef = useRef(null);
                   key={elementStyle.id}
                   className="shape-elementy"
                   onMouseDown={(e) => {
-                    // CORRECTION DÉPLACEMENT: Toujours appeler select mais avec vérification interne
                     select(e, elementStyle.id);
                   }}
                   style={{
@@ -1628,7 +1656,6 @@ const updateConnectionsTimeoutRef = useRef(null);
                   }}
                   shape-type={elementStyle.type}
                 >
-                  {/* CORRECTION ALIGNEMENT: Nouveau système d'alignement vertical */}
                   <div
                     style={{
                       position: "absolute",
@@ -1636,8 +1663,7 @@ const updateConnectionsTimeoutRef = useRef(null);
                       left: "0",
                       width: "100%",
                       height: "100%",
-                      display: "table", // Utiliser table pour le centrage vertical
-                      // Annuler les transformations de la forme parente pour le texte
+                      display: "table",
                       transform: (() => {
                         if (elementStyle.transform?.includes("rotate")) {
                           return "rotate(-45deg)";
@@ -1658,11 +1684,11 @@ const updateConnectionsTimeoutRef = useRef(null);
                       id={"input" + elementStyle.id}
                       className="text-dark shape-input"
                       style={{
-                        display: "table-cell", // Cellule de table pour centrage vertical
+                        display: "table-cell",
                         verticalAlign: (() => {
                           if (elementStyle.textVerticalAlign === "top") return "top";
                           if (elementStyle.textVerticalAlign === "bottom") return "bottom";
-                          return "middle"; // centrage par défaut
+                          return "middle";
                         })(),
                         textAlign: elementStyle.textAlign || "center",
                         width: "100%",
