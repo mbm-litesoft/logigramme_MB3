@@ -189,7 +189,8 @@ const [deletingElements, setDeletingElements] = useState(new Set());
     }, [isDown]);
 
  // Fonction pour mettre à jour les connexions SVG avec des lignes spécifiques
- const updateSvgConnectionsWithLines = useCallback((specificLines) => {
+ // Fonction pour mettre à jour les connexions SVG avec des lignes spécifiques
+const updateSvgConnectionsWithLines = useCallback((specificLines) => {
   try {
     if (!specificLines || specificLines.length === 0) {
       setSvgConnections([]);
@@ -197,70 +198,61 @@ const [deletingElements, setDeletingElements] = useState(new Set());
     }
 
     const linesData = JSON.parse(JSON.stringify(specificLines));
-    const containerRect = document
-      .querySelector(".openDiv")
-      ?.getBoundingClientRect();
-    if (!containerRect) return;
 
     const newConnections = linesData
       .map((line) => {
         try {
-          const sourceElement = document.getElementById(line.source);
-          const targetElement = document.getElementById(line.target);
+          // ✅ UTILISER LES POSITIONS STOCKÉES AU LIEU DE getBoundingClientRect
+          const sourceElement = elements.find(el => el.id === line.source);
+          const targetElement = elements.find(el => el.id === line.target);
 
           if (!sourceElement || !targetElement) return null;
 
-          const sourceRect = sourceElement.getBoundingClientRect();
-          const targetRect = targetElement.getBoundingClientRect();
+          // Utiliser directement les positions et dimensions stockées
+          const sourceRect = {
+            left: sourceElement.x,
+            top: sourceElement.y,
+            width: sourceElement.width,
+            height: sourceElement.height,
+            right: sourceElement.x + sourceElement.width,
+            bottom: sourceElement.y + sourceElement.height
+          };
 
-          const sourceShapeType = parseInt(
-            sourceElement.getAttribute("shape-type")
-          );
-          const targetShapeType = parseInt(
-            targetElement.getAttribute("shape-type")
-          );
+          const targetRect = {
+            left: targetElement.x,
+            top: targetElement.y,
+            width: targetElement.width,
+            height: targetElement.height,
+            right: targetElement.x + targetElement.width,
+            bottom: targetElement.y + targetElement.height
+          };
+
+          const sourceShapeType = sourceElement.type;
+          const targetShapeType = targetElement.type;
 
           let sourceX, sourceY, targetX, targetY;
 
           // Calcul du point source
           if (sourceShapeType === 3) {
-            const sourceCenterX =
-              sourceRect.left + sourceRect.width / 2 - containerRect.left;
-            const sourceCenterY =
-              sourceRect.top + sourceRect.height / 2 - containerRect.top;
+            const sourceCenterX = sourceRect.left + sourceRect.width / 2;
+            const sourceCenterY = sourceRect.top + sourceRect.height / 2;
 
             switch (line.sourceSide) {
               case "top-right":
-                sourceX =
-                  sourceCenterX +
-                  Math.cos(Math.PI / 4) * (sourceRect.width / 2);
-                sourceY =
-                  sourceCenterY -
-                  Math.sin(Math.PI / 4) * (sourceRect.height / 2);
+                sourceX = sourceCenterX + Math.cos(Math.PI / 4) * (sourceRect.width / 2);
+                sourceY = sourceCenterY - Math.sin(Math.PI / 4) * (sourceRect.height / 2);
                 break;
               case "bottom-right":
-                sourceX =
-                  sourceCenterX +
-                  Math.cos(Math.PI / 4) * (sourceRect.width / 2);
-                sourceY =
-                  sourceCenterY +
-                  Math.sin(Math.PI / 4) * (sourceRect.height / 2);
+                sourceX = sourceCenterX + Math.cos(Math.PI / 4) * (sourceRect.width / 2);
+                sourceY = sourceCenterY + Math.sin(Math.PI / 4) * (sourceRect.height / 2);
                 break;
               case "bottom-left":
-                sourceX =
-                  sourceCenterX -
-                  Math.cos(Math.PI / 4) * (sourceRect.width / 2);
-                sourceY =
-                  sourceCenterY +
-                  Math.sin(Math.PI / 4) * (sourceRect.height / 2);
+                sourceX = sourceCenterX - Math.cos(Math.PI / 4) * (sourceRect.width / 2);
+                sourceY = sourceCenterY + Math.sin(Math.PI / 4) * (sourceRect.height / 2);
                 break;
               case "top-left":
-                sourceX =
-                  sourceCenterX -
-                  Math.cos(Math.PI / 4) * (sourceRect.width / 2);
-                sourceY =
-                  sourceCenterY -
-                  Math.sin(Math.PI / 4) * (sourceRect.height / 2);
+                sourceX = sourceCenterX - Math.cos(Math.PI / 4) * (sourceRect.width / 2);
+                sourceY = sourceCenterY - Math.sin(Math.PI / 4) * (sourceRect.height / 2);
                 break;
               default:
                 sourceX = sourceCenterX;
@@ -269,103 +261,61 @@ const [deletingElements, setDeletingElements] = useState(new Set());
           } else {
             switch (line.sourceSide) {
               case "top":
-                sourceX =
-                  sourceRect.left +
-                  sourceRect.width / 2 -
-                  containerRect.left;
-                sourceY = sourceRect.top - containerRect.top;
+                sourceX = sourceRect.left + sourceRect.width / 2;
+                sourceY = sourceRect.top;
                 break;
               case "right":
-                sourceX = sourceRect.right - containerRect.left;
-                sourceY =
-                  sourceRect.top +
-                  sourceRect.height / 2 -
-                  containerRect.top;
+                sourceX = sourceRect.right;
+                sourceY = sourceRect.top + sourceRect.height / 2;
                 break;
               case "bottom":
-                sourceX =
-                  sourceRect.left +
-                  sourceRect.width / 2 -
-                  containerRect.left;
-                sourceY = sourceRect.bottom - containerRect.top;
+                sourceX = sourceRect.left + sourceRect.width / 2;
+                sourceY = sourceRect.bottom;
                 break;
               case "left":
-                sourceX = sourceRect.left - containerRect.left;
-                sourceY =
-                  sourceRect.top +
-                  sourceRect.height / 2 -
-                  containerRect.top;
+                sourceX = sourceRect.left;
+                sourceY = sourceRect.top + sourceRect.height / 2;
                 break;
               default:
                 if (line.sourceSide && line.sourceSide.includes("top")) {
-                  sourceY = sourceRect.top - containerRect.top;
-                } else if (
-                  line.sourceSide &&
-                  line.sourceSide.includes("bottom")
-                ) {
-                  sourceY = sourceRect.bottom - containerRect.top;
+                  sourceY = sourceRect.top;
+                } else if (line.sourceSide && line.sourceSide.includes("bottom")) {
+                  sourceY = sourceRect.bottom;
                 } else {
-                  sourceY =
-                    sourceRect.top +
-                    sourceRect.height / 2 -
-                    containerRect.top;
+                  sourceY = sourceRect.top + sourceRect.height / 2;
                 }
 
                 if (line.sourceSide && line.sourceSide.includes("left")) {
-                  sourceX = sourceRect.left - containerRect.left;
-                } else if (
-                  line.sourceSide &&
-                  line.sourceSide.includes("right")
-                ) {
-                  sourceX = sourceRect.right - containerRect.left;
+                  sourceX = sourceRect.left;
+                } else if (line.sourceSide && line.sourceSide.includes("right")) {
+                  sourceX = sourceRect.right;
                 } else {
-                  sourceX =
-                    sourceRect.left +
-                    sourceRect.width / 2 -
-                    containerRect.left;
+                  sourceX = sourceRect.left + sourceRect.width / 2;
                 }
             }
           }
 
           // Calcul du point cible
           if (targetShapeType === 3) {
-            const targetCenterX =
-              targetRect.left + targetRect.width / 2 - containerRect.left;
-            const targetCenterY =
-              targetRect.top + targetRect.height / 2 - containerRect.top;
+            const targetCenterX = targetRect.left + targetRect.width / 2;
+            const targetCenterY = targetRect.top + targetRect.height / 2;
 
             switch (line.targetSide) {
               case "top-right":
-                targetX =
-                  targetCenterX +
-                  Math.cos(Math.PI / 4) * (targetRect.width / 2);
-                targetY =
-                  targetCenterY -
-                  Math.sin(Math.PI / 4) * (targetRect.height / 2);
+                targetX = targetCenterX + Math.cos(Math.PI / 4) * (targetRect.width / 2);
+                targetY = targetCenterY - Math.sin(Math.PI / 4) * (targetRect.height / 2);
                 break;
               case "bottom-right":
-                targetX =
-                  targetCenterX +
-                  Math.cos(Math.PI / 4) * (targetRect.width / 2);
-                targetY =
-                  targetCenterY +
-                  Math.sin(Math.PI / 4) * (targetRect.height / 2);
+                targetX = targetCenterX + Math.cos(Math.PI / 4) * (targetRect.width / 2);
+                targetY = targetCenterY + Math.sin(Math.PI / 4) * (targetRect.height / 2);
                 break;
               case "bottom-left":
-                targetX =
-                  targetCenterX -
-                  Math.cos(Math.PI / 4) * (targetRect.width / 2);
-                targetY =
-                  targetCenterY +
-                  Math.sin(Math.PI / 4) * (targetRect.height / 2);
+                targetX = targetCenterX - Math.cos(Math.PI / 4) * (targetRect.width / 2);
+                targetY = targetCenterY + Math.sin(Math.PI / 4) * (targetRect.height / 2);
                 break;
               case "top-left":
-                targetX =
-                  targetCenterX -
-                  Math.cos(Math.PI / 4) * (targetRect.width / 2);
-                targetY =
-                  targetCenterY -
-                  Math.sin(Math.PI / 4) * (targetRect.height / 2);
+                targetX = targetCenterX - Math.cos(Math.PI / 4) * (targetRect.width / 2);
+                targetY = targetCenterY - Math.sin(Math.PI / 4) * (targetRect.height / 2);
                 break;
               default:
                 targetX = targetCenterX;
@@ -374,85 +324,50 @@ const [deletingElements, setDeletingElements] = useState(new Set());
           } else {
             switch (line.targetSide) {
               case "top":
-                targetX =
-                  targetRect.left +
-                  targetRect.width / 2 -
-                  containerRect.left;
-                targetY = targetRect.top - containerRect.top;
+                targetX = targetRect.left + targetRect.width / 2;
+                targetY = targetRect.top;
                 break;
               case "right":
-                targetX = targetRect.right - containerRect.left;
-                targetY =
-                  targetRect.top +
-                  targetRect.height / 2 -
-                  containerRect.top;
+                targetX = targetRect.right;
+                targetY = targetRect.top + targetRect.height / 2;
                 break;
               case "bottom":
-                targetX =
-                  targetRect.left +
-                  targetRect.width / 2 -
-                  containerRect.left;
-                targetY = targetRect.bottom - containerRect.top;
+                targetX = targetRect.left + targetRect.width / 2;
+                targetY = targetRect.bottom;
                 break;
               case "left":
-                targetX = targetRect.left - containerRect.left;
-                targetY =
-                  targetRect.top +
-                  targetRect.height / 2 -
-                  containerRect.top;
+                targetX = targetRect.left;
+                targetY = targetRect.top + targetRect.height / 2;
                 break;
               default:
                 if (line.targetSide && line.targetSide.includes("top")) {
-                  targetY = targetRect.top - containerRect.top;
-                } else if (
-                  line.targetSide &&
-                  line.targetSide.includes("bottom")
-                ) {
-                  targetY = targetRect.bottom - containerRect.top;
+                  targetY = targetRect.top;
+                } else if (line.targetSide && line.targetSide.includes("bottom")) {
+                  targetY = targetRect.bottom;
                 } else {
-                  targetY =
-                    targetRect.top +
-                    targetRect.height / 2 -
-                    containerRect.top;
+                  targetY = targetRect.top + targetRect.height / 2;
                 }
 
                 if (line.targetSide && line.targetSide.includes("left")) {
-                  targetX = targetRect.left - containerRect.left;
-                } else if (
-                  line.targetSide &&
-                  line.targetSide.includes("right")
-                ) {
-                  targetX = targetRect.right - containerRect.left;
+                  targetX = targetRect.left;
+                } else if (line.targetSide && line.targetSide.includes("right")) {
+                  targetX = targetRect.right;
                 } else {
-                  targetX =
-                    targetRect.left +
-                    targetRect.width / 2 -
-                    containerRect.left;
+                  targetX = targetRect.left + targetRect.width / 2;
                 }
             }
           }
 
-          if (
-            isNaN(sourceX) ||
-            isNaN(sourceY) ||
-            isNaN(targetX) ||
-            isNaN(targetY)
-          ) {
+          if (isNaN(sourceX) || isNaN(sourceY) || isNaN(targetX) || isNaN(targetY)) {
             return null;
           }
 
-          const controlDistance =
-            Math.min(
-              Math.abs(targetX - sourceX),
-              Math.abs(targetY - sourceY)
-            ) /
-              2 +
-            50;
+          const controlDistance = Math.min(
+            Math.abs(targetX - sourceX),
+            Math.abs(targetY - sourceY)
+          ) / 2 + 50;
 
-          let sourceControlX,
-            sourceControlY,
-            targetControlX,
-            targetControlY;
+          let sourceControlX, sourceControlY, targetControlX, targetControlY;
 
           // Point de contrôle source
           switch (line.sourceSide) {
@@ -526,11 +441,7 @@ const [deletingElements, setDeletingElements] = useState(new Set());
             toolType: line.toolType,
           };
         } catch (error) {
-          console.error(
-            "Error calculating connection for line:",
-            line,
-            error
-          );
+          console.error("Error calculating connection for line:", line, error);
           return null;
         }
       })
@@ -540,8 +451,7 @@ const [deletingElements, setDeletingElements] = useState(new Set());
   } catch (error) {
     console.error("Error in updateSvgConnectionsWithLines:", error);
   }
-}, []);
-
+}, [elements]); // ✅ Ajouter elements comme dépendance
   
 
 
@@ -1533,85 +1443,84 @@ const [deletingElements, setDeletingElements] = useState(new Set());
             }}
           >
             {/* Conteneur SVG pour les connexions */}
-            <svg
-              className="connections-container"
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                height: "100%",
-                pointerEvents: "none",
-                zIndex: 9000,
-              }}
+<svg
+  className="connections-container"
+  style={{
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: `${canvasSize.width}px`,    // ✅ Taille complète du canvas
+    height: `${canvasSize.height}px`,  // ✅ Taille complète du canvas
+    pointerEvents: "none",
+    zIndex: 9000,
+  }}
+>
+  <defs>
+    {svgConnections &&
+      svgConnections.map((conn) => {
+        if (
+          !conn.toolType ||
+          conn.toolType === 6 ||
+          conn.toolType === 7
+        ) {
+          return (
+            <marker
+              key={`marker-${conn.id}`}
+              id={`arrowhead-${conn.id}`}
+              markerWidth="10"
+              markerHeight="7"
+              refX="9"
+              refY="3.5"
+              orient="auto"
             >
-              <defs>
-                {svgConnections &&
-                  svgConnections.map((conn) => {
-                    if (
-                      !conn.toolType ||
-                      conn.toolType === 6 ||
-                      conn.toolType === 7
-                    ) {
-                      return (
-                        <marker
-                          key={`marker-${conn.id}`}
-                          id={`arrowhead-${conn.id}`}
-                          markerWidth="10"
-                          markerHeight="7"
-                          refX="9"
-                          refY="3.5"
-                          orient="auto"
-                        >
-                          <circle cx="8" cy="3.5" r="2" fill={conn.color} />
-                        </marker>
-                      );
-                    }
-                    return null;
-                  })}
-              </defs>
+              <circle cx="8" cy="3.5" r="2" fill={conn.color} />
+            </marker>
+          );
+        }
+        return null;
+      })}
+  </defs>
 
-              {svgConnections &&
-                svgConnections.map((conn) => {
-                  if (!conn.toolType || conn.toolType === 6) {
-                    return (
-                      <path
-                        key={`path-${conn.id}`}
-                        d={conn.path}
-                        stroke={conn.color}
-                        strokeWidth={conn.thickness}
-                        fill="none"
-                        markerEnd={`url(#arrowhead-${conn.id})`}
-                      />
-                    );
-                  } else if (conn.toolType === 7) {
-                    return (
-                      <path
-                        key={`path-${conn.id}`}
-                        d={conn.path}
-                        stroke={conn.color}
-                        strokeWidth={conn.thickness}
-                        fill="none"
-                        strokeDasharray="5,5"
-                        markerEnd={`url(#arrowhead-${conn.id})`}
-                      />
-                    );
-                  } else if (conn.toolType === 8) {
-                    return (
-                      <path
-                        key={`path-${conn.id}`}
-                        d={conn.path}
-                        stroke={conn.color}
-                        strokeWidth={conn.thickness}
-                        fill="none"
-                        strokeDasharray="2,4"
-                      />
-                    );
-                  }
-                  return null;
-                })}
-            </svg>
-
+  {svgConnections &&
+    svgConnections.map((conn) => {
+      if (!conn.toolType || conn.toolType === 6) {
+        return (
+          <path
+            key={`path-${conn.id}`}
+            d={conn.path}
+            stroke={conn.color}
+            strokeWidth={conn.thickness}
+            fill="none"
+            markerEnd={`url(#arrowhead-${conn.id})`}
+          />
+        );
+      } else if (conn.toolType === 7) {
+        return (
+          <path
+            key={`path-${conn.id}`}
+            d={conn.path}
+            stroke={conn.color}
+            strokeWidth={conn.thickness}
+            fill="none"
+            strokeDasharray="5,5"
+            markerEnd={`url(#arrowhead-${conn.id})`}
+          />
+        );
+      } else if (conn.toolType === 8) {
+        return (
+          <path
+            key={`path-${conn.id}`}
+            d={conn.path}
+            stroke={conn.color}
+            strokeWidth={conn.thickness}
+            fill="none"
+            strokeDasharray="2,4"
+          />
+        );
+      }
+      return null;
+    })}
+</svg>
             {/* Rendu des éléments */}
             {elements
               .filter((el) => el.id)
