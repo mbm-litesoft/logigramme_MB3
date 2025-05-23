@@ -6,6 +6,7 @@ import {
   useCallback,
   forwardRef,
   useImperativeHandle,
+  useMemo
 } from "react";
 import { v4 as uuidv4 } from "uuid";
 
@@ -62,6 +63,9 @@ const MainLogigramme = forwardRef(
     const [sourceDot, setSourceDot] = useState(null);
     const containerRef = useRef(null);
 
+    const initialDragPosition = useRef(null);
+    const dragStartMousePosition = useRef(null);
+    
     const dotSelected = useRef(false);
     const defaultDimensions = useRef({ width: 103, height: 103 });
     const dotPatternCreationTimeout = useRef(null);
@@ -70,14 +74,21 @@ const MainLogigramme = forwardRef(
     const sourceElementRef = useRef(null);
     const sourceSideRef = useRef(null);
     const sourceDotRef = useRef(null);
-const [deletingElements, setDeletingElements] = useState(new Set());
+    const [deletingElements, setDeletingElements] = useState(new Set());
+
+    const isDraggingRef = useRef(false);
+const draggedElementRef = useRef(null);
+const [tempPosition, setTempPosition] = useState(null);
+const updateConnectionsTimeoutRef = useRef(null);
     // Taille du canvas
     const [canvasSize] = useState({
       width: 5000,
       height: 5000,
     });
 
+
     
+
     // Notification au parent quand le chargement est terminé
     useEffect(() => {
       if (isInternallyLoaded && !isInitialRender.current) {
@@ -91,34 +102,12 @@ const [deletingElements, setDeletingElements] = useState(new Set());
     useEffect(() => {
       isInitialRender.current = false;
 
-      let loadingTasks = 0;
-
-      if (lines.length > 0) {
-        loadingTasks++;
-        setTimeout(() => {
-          updateSvgConnections();
-          loadingTasks--;
-          if (loadingTasks === 0 && !initializationComplete.current) {
-            setIsInternallyLoaded(true);
-            initializationComplete.current = true;
-          }
-        }, 200);
-      }
-
-      loadingTasks++;
-      setTimeout(() => {
+      // Initialiser seulement le pattern de points
+      const timer = setTimeout(() => {
         createDotPattern();
-        loadingTasks--;
-        if (loadingTasks === 0 && !initializationComplete.current) {
-          setIsInternallyLoaded(true);
-          initializationComplete.current = true;
-        }
-      }, 100);
-
-      if (loadingTasks === 0 && !initializationComplete.current) {
         setIsInternallyLoaded(true);
         initializationComplete.current = true;
-      }
+      }, 100);
 
       const fallbackTimer = setTimeout(() => {
         if (!initializationComplete.current) {
@@ -127,7 +116,10 @@ const [deletingElements, setDeletingElements] = useState(new Set());
         }
       }, 1000);
 
-      return () => clearTimeout(fallbackTimer);
+      return () => {
+        clearTimeout(timer);
+        clearTimeout(fallbackTimer);
+      };
     }, []);
 
     useEffect(() => {
@@ -136,13 +128,7 @@ const [deletingElements, setDeletingElements] = useState(new Set());
       }
     }, [uuid, onUuidChange]);
 
-    useEffect(() => {
-      if (lines.length > 0) {
-        setTimeout(() => {
-          updateSvgConnections();
-        }, 200);
-      }
-    }, []);
+
 
     // Effet qui se déclenche quand la prop tool change
     useEffect(() => {
@@ -153,7 +139,8 @@ const [deletingElements, setDeletingElements] = useState(new Set());
             showConnectionPoints(element);
           });
           setConnectingMode(true);
-          updateSvgConnections();
+          // ✅ SUPPRIMER cet appel - c'est géré par le useEffect centralisé
+          // updateSvgConnectionsWithLines(lines, elements);
         }, 100);
       } else {
         const dots = document.querySelectorAll(".connection-dot");
@@ -164,11 +151,6 @@ const [deletingElements, setDeletingElements] = useState(new Set());
       }
     }, [tool]);
 
-    useEffect(() => {
-      if (lines.length > 0) {
-        updateSvgConnections();
-      }
-    }, [elements, lines]);
 
     // Gestionnaire mouseup global amélioré
     useEffect(() => {
@@ -188,271 +170,9 @@ const [deletingElements, setDeletingElements] = useState(new Set());
       };
     }, [isDown]);
 
- // Fonction pour mettre à jour les connexions SVG avec des lignes spécifiques
- // Fonction pour mettre à jour les connexions SVG avec des lignes spécifiques
-const updateSvgConnectionsWithLines = useCallback((specificLines) => {
-  try {
-    if (!specificLines || specificLines.length === 0) {
-      setSvgConnections([]);
-      return;
-    }
+    // Fonction pour mettre à jour les connexions SVG avec des lignes spécifiques
 
-    const linesData = JSON.parse(JSON.stringify(specificLines));
 
-    const newConnections = linesData
-      .map((line) => {
-        try {
-          // ✅ UTILISER LES POSITIONS STOCKÉES AU LIEU DE getBoundingClientRect
-          const sourceElement = elements.find(el => el.id === line.source);
-          const targetElement = elements.find(el => el.id === line.target);
-
-          if (!sourceElement || !targetElement) return null;
-
-          // Utiliser directement les positions et dimensions stockées
-          const sourceRect = {
-            left: sourceElement.x,
-            top: sourceElement.y,
-            width: sourceElement.width,
-            height: sourceElement.height,
-            right: sourceElement.x + sourceElement.width,
-            bottom: sourceElement.y + sourceElement.height
-          };
-
-          const targetRect = {
-            left: targetElement.x,
-            top: targetElement.y,
-            width: targetElement.width,
-            height: targetElement.height,
-            right: targetElement.x + targetElement.width,
-            bottom: targetElement.y + targetElement.height
-          };
-
-          const sourceShapeType = sourceElement.type;
-          const targetShapeType = targetElement.type;
-
-          let sourceX, sourceY, targetX, targetY;
-
-          // Calcul du point source
-          if (sourceShapeType === 3) {
-            const sourceCenterX = sourceRect.left + sourceRect.width / 2;
-            const sourceCenterY = sourceRect.top + sourceRect.height / 2;
-
-            switch (line.sourceSide) {
-              case "top-right":
-                sourceX = sourceCenterX + Math.cos(Math.PI / 4) * (sourceRect.width / 2);
-                sourceY = sourceCenterY - Math.sin(Math.PI / 4) * (sourceRect.height / 2);
-                break;
-              case "bottom-right":
-                sourceX = sourceCenterX + Math.cos(Math.PI / 4) * (sourceRect.width / 2);
-                sourceY = sourceCenterY + Math.sin(Math.PI / 4) * (sourceRect.height / 2);
-                break;
-              case "bottom-left":
-                sourceX = sourceCenterX - Math.cos(Math.PI / 4) * (sourceRect.width / 2);
-                sourceY = sourceCenterY + Math.sin(Math.PI / 4) * (sourceRect.height / 2);
-                break;
-              case "top-left":
-                sourceX = sourceCenterX - Math.cos(Math.PI / 4) * (sourceRect.width / 2);
-                sourceY = sourceCenterY - Math.sin(Math.PI / 4) * (sourceRect.height / 2);
-                break;
-              default:
-                sourceX = sourceCenterX;
-                sourceY = sourceCenterY;
-            }
-          } else {
-            switch (line.sourceSide) {
-              case "top":
-                sourceX = sourceRect.left + sourceRect.width / 2;
-                sourceY = sourceRect.top;
-                break;
-              case "right":
-                sourceX = sourceRect.right;
-                sourceY = sourceRect.top + sourceRect.height / 2;
-                break;
-              case "bottom":
-                sourceX = sourceRect.left + sourceRect.width / 2;
-                sourceY = sourceRect.bottom;
-                break;
-              case "left":
-                sourceX = sourceRect.left;
-                sourceY = sourceRect.top + sourceRect.height / 2;
-                break;
-              default:
-                if (line.sourceSide && line.sourceSide.includes("top")) {
-                  sourceY = sourceRect.top;
-                } else if (line.sourceSide && line.sourceSide.includes("bottom")) {
-                  sourceY = sourceRect.bottom;
-                } else {
-                  sourceY = sourceRect.top + sourceRect.height / 2;
-                }
-
-                if (line.sourceSide && line.sourceSide.includes("left")) {
-                  sourceX = sourceRect.left;
-                } else if (line.sourceSide && line.sourceSide.includes("right")) {
-                  sourceX = sourceRect.right;
-                } else {
-                  sourceX = sourceRect.left + sourceRect.width / 2;
-                }
-            }
-          }
-
-          // Calcul du point cible
-          if (targetShapeType === 3) {
-            const targetCenterX = targetRect.left + targetRect.width / 2;
-            const targetCenterY = targetRect.top + targetRect.height / 2;
-
-            switch (line.targetSide) {
-              case "top-right":
-                targetX = targetCenterX + Math.cos(Math.PI / 4) * (targetRect.width / 2);
-                targetY = targetCenterY - Math.sin(Math.PI / 4) * (targetRect.height / 2);
-                break;
-              case "bottom-right":
-                targetX = targetCenterX + Math.cos(Math.PI / 4) * (targetRect.width / 2);
-                targetY = targetCenterY + Math.sin(Math.PI / 4) * (targetRect.height / 2);
-                break;
-              case "bottom-left":
-                targetX = targetCenterX - Math.cos(Math.PI / 4) * (targetRect.width / 2);
-                targetY = targetCenterY + Math.sin(Math.PI / 4) * (targetRect.height / 2);
-                break;
-              case "top-left":
-                targetX = targetCenterX - Math.cos(Math.PI / 4) * (targetRect.width / 2);
-                targetY = targetCenterY - Math.sin(Math.PI / 4) * (targetRect.height / 2);
-                break;
-              default:
-                targetX = targetCenterX;
-                targetY = targetCenterY;
-            }
-          } else {
-            switch (line.targetSide) {
-              case "top":
-                targetX = targetRect.left + targetRect.width / 2;
-                targetY = targetRect.top;
-                break;
-              case "right":
-                targetX = targetRect.right;
-                targetY = targetRect.top + targetRect.height / 2;
-                break;
-              case "bottom":
-                targetX = targetRect.left + targetRect.width / 2;
-                targetY = targetRect.bottom;
-                break;
-              case "left":
-                targetX = targetRect.left;
-                targetY = targetRect.top + targetRect.height / 2;
-                break;
-              default:
-                if (line.targetSide && line.targetSide.includes("top")) {
-                  targetY = targetRect.top;
-                } else if (line.targetSide && line.targetSide.includes("bottom")) {
-                  targetY = targetRect.bottom;
-                } else {
-                  targetY = targetRect.top + targetRect.height / 2;
-                }
-
-                if (line.targetSide && line.targetSide.includes("left")) {
-                  targetX = targetRect.left;
-                } else if (line.targetSide && line.targetSide.includes("right")) {
-                  targetX = targetRect.right;
-                } else {
-                  targetX = targetRect.left + targetRect.width / 2;
-                }
-            }
-          }
-
-          if (isNaN(sourceX) || isNaN(sourceY) || isNaN(targetX) || isNaN(targetY)) {
-            return null;
-          }
-
-          const controlDistance = Math.min(
-            Math.abs(targetX - sourceX),
-            Math.abs(targetY - sourceY)
-          ) / 2 + 50;
-
-          let sourceControlX, sourceControlY, targetControlX, targetControlY;
-
-          // Point de contrôle source
-          switch (line.sourceSide) {
-            case "top":
-              sourceControlX = sourceX;
-              sourceControlY = sourceY - controlDistance;
-              break;
-            case "right":
-              sourceControlX = sourceX + controlDistance;
-              sourceControlY = sourceY;
-              break;
-            case "bottom":
-              sourceControlX = sourceX;
-              sourceControlY = sourceY + controlDistance;
-              break;
-            case "left":
-              sourceControlX = sourceX - controlDistance;
-              sourceControlY = sourceY;
-              break;
-            default:
-              if (line.sourceSide && line.sourceSide.includes("top")) {
-                sourceControlY = sourceY - controlDistance / 2;
-              } else {
-                sourceControlY = sourceY + controlDistance / 2;
-              }
-              if (line.sourceSide && line.sourceSide.includes("right")) {
-                sourceControlX = sourceX + controlDistance / 2;
-              } else {
-                sourceControlX = sourceX - controlDistance / 2;
-              }
-          }
-
-          // Point de contrôle cible
-          switch (line.targetSide) {
-            case "top":
-              targetControlX = targetX;
-              targetControlY = targetY - controlDistance;
-              break;
-            case "right":
-              targetControlX = targetX + controlDistance;
-              targetControlY = targetY;
-              break;
-            case "bottom":
-              targetControlX = targetX;
-              targetControlY = targetY + controlDistance;
-              break;
-            case "left":
-              targetControlX = targetX - controlDistance;
-              targetControlY = targetY;
-              break;
-            default:
-              if (line.targetSide && line.targetSide.includes("top")) {
-                targetControlY = targetY - controlDistance / 2;
-              } else {
-                targetControlY = targetY + controlDistance / 2;
-              }
-              if (line.targetSide && line.targetSide.includes("right")) {
-                targetControlX = targetX + controlDistance / 2;
-              } else {
-                targetControlX = targetX - controlDistance / 2;
-              }
-          }
-
-          const path = `M ${sourceX},${sourceY} C ${sourceControlX},${sourceControlY} ${targetControlX},${targetControlY} ${targetX},${targetY}`;
-
-          return {
-            id: line.id,
-            path,
-            color: line.color || "#2c3e50",
-            thickness: line.thickness || 2,
-            toolType: line.toolType,
-          };
-        } catch (error) {
-          console.error("Error calculating connection for line:", line, error);
-          return null;
-        }
-      })
-      .filter((conn) => conn !== null);
-
-    setSvgConnections(newConnections);
-  } catch (error) {
-    console.error("Error in updateSvgConnectionsWithLines:", error);
-  }
-}, [elements]); // ✅ Ajouter elements comme dépendance
-  
 
 
     // Réagir aux changements de zoom
@@ -477,8 +197,9 @@ const updateSvgConnectionsWithLines = useCallback((specificLines) => {
         if (typeof updaterFn === "function") {
           setElements((prevElements) => {
             const newElements = updaterFn(prevElements);
-    
-            // ✅ SUPPRESSION du setTimeout - Propagation immédiate
+
+
+
             if (!isInitialRender.current) {
               if (propSetElements) propSetElements(newElements);
               if (onDataChange) onDataChange(newElements, lines);
@@ -487,8 +208,9 @@ const updateSvgConnectionsWithLines = useCallback((specificLines) => {
           });
         } else {
           setElements(updaterFn);
-    
-          // ✅ SUPPRESSION du setTimeout - Propagation immédiate  
+
+
+
           if (!isInitialRender.current) {
             if (propSetElements) propSetElements(updaterFn);
             if (onDataChange) onDataChange(updaterFn, lines);
@@ -504,8 +226,9 @@ const updateSvgConnectionsWithLines = useCallback((specificLines) => {
         if (typeof updaterFn === "function") {
           setLines((prevLines) => {
             const newLines = updaterFn(prevLines);
-    
-            // ✅ SUPPRESSION du setTimeout - Propagation immédiate
+
+
+
             if (!isInitialRender.current) {
               if (propSetLines) propSetLines(newLines);
               if (onDataChange) onDataChange(elements, newLines);
@@ -514,8 +237,9 @@ const updateSvgConnectionsWithLines = useCallback((specificLines) => {
           });
         } else {
           setLines(updaterFn);
-    
-          // ✅ SUPPRESSION du setTimeout - Propagation immédiate
+
+
+
           if (!isInitialRender.current) {
             if (propSetLines) propSetLines(updaterFn);
             if (onDataChange) onDataChange(elements, updaterFn);
@@ -537,33 +261,340 @@ const updateSvgConnectionsWithLines = useCallback((specificLines) => {
       }
     }, [propLines]);
 
-   
-
-    const deleteElement = useCallback((elementId) => {
+    const connectionData = useMemo(() => {
+      console.log('🔄 useMemo: Calcul des données de connexion');
       
-      if (deletingElements.has(elementId)) return;
-      
-      const linesToKeep = lines.filter(line => line.source !== elementId && line.target !== elementId);
-      const elementsToKeep = elements.filter(el => el.id !== elementId);
-      
-      // 🔥 MISE À JOUR IMMÉDIATE ET SYNCHRONE
-      if (linesToKeep.length === 0) {
-        setSvgConnections([]);
-      } else {
-        updateSvgConnectionsWithLines(linesToKeep);
+      if (!lines || lines.length === 0) {
+        console.log('🗑️ Aucune ligne - pas de connexions');
+        return [];
       }
       
+      if (!elements || elements.length === 0) {
+        console.log('⚠️ Aucun élément - pas de connexions');
+        return [];
+      }
+    
+      // Utiliser les positions temporaires si disponibles pendant le déplacement
+      const elementsWithTemp = elements.map(el => {
+        if (tempPosition && tempPosition.id === el.id) {
+          return {
+            ...el,
+            x: tempPosition.x,
+            y: tempPosition.y
+          };
+        }
+        return el;
+      });
+    
+      // Créer une signature des éléments basée uniquement sur les propriétés qui affectent les connexions
+      const elementsSignature = elementsWithTemp.map(el => ({
+        id: el.id,
+        x: el.x,
+        y: el.y,
+        width: el.width,
+        height: el.height,
+        type: el.type
+      }));
+    
+      console.log('📊 Calcul connexions avec:', {
+        lignes: lines.length,
+        elements: elementsSignature.length,
+        dragging: isDraggingRef.current
+      });
+    
+      const newConnections = lines
+        .map((line) => {
+          try {
+            const sourceElement = elementsSignature.find(el => el.id === line.source);
+            const targetElement = elementsSignature.find(el => el.id === line.target);
+    
+            if (!sourceElement || !targetElement) {
+              console.warn(`⚠️ Éléments manquants pour ligne ${line.id}`);
+              return null;
+            }
+    
+            // Calcul des positions
+            const sourceRect = {
+              left: sourceElement.x,
+              top: sourceElement.y,
+              width: sourceElement.width,
+              height: sourceElement.height,
+              right: sourceElement.x + sourceElement.width,
+              bottom: sourceElement.y + sourceElement.height
+            };
+    
+            const targetRect = {
+              left: targetElement.x,
+              top: targetElement.y,
+              width: targetElement.width,
+              height: targetElement.height,
+              right: targetElement.x + targetElement.width,
+              bottom: targetElement.y + targetElement.height
+            };
+    
+            const sourceShapeType = sourceElement.type;
+            const targetShapeType = targetElement.type;
+    
+            let sourceX, sourceY, targetX, targetY;
+    
+            // Calcul du point source
+            if (sourceShapeType === 3) {
+              const sourceCenterX = sourceRect.left + sourceRect.width / 2;
+              const sourceCenterY = sourceRect.top + sourceRect.height / 2;
+    
+              switch (line.sourceSide) {
+                case "top-right":
+                  sourceX = sourceCenterX + Math.cos(Math.PI / 4) * (sourceRect.width / 2);
+                  sourceY = sourceCenterY - Math.sin(Math.PI / 4) * (sourceRect.height / 2);
+                  break;
+                case "bottom-right":
+                  sourceX = sourceCenterX + Math.cos(Math.PI / 4) * (sourceRect.width / 2);
+                  sourceY = sourceCenterY + Math.sin(Math.PI / 4) * (sourceRect.height / 2);
+                  break;
+                case "bottom-left":
+                  sourceX = sourceCenterX - Math.cos(Math.PI / 4) * (sourceRect.width / 2);
+                  sourceY = sourceCenterY + Math.sin(Math.PI / 4) * (sourceRect.height / 2);
+                  break;
+                case "top-left":
+                  sourceX = sourceCenterX - Math.cos(Math.PI / 4) * (sourceRect.width / 2);
+                  sourceY = sourceCenterY - Math.sin(Math.PI / 4) * (sourceRect.height / 2);
+                  break;
+                default:
+                  sourceX = sourceCenterX;
+                  sourceY = sourceCenterY;
+              }
+            } else {
+              switch (line.sourceSide) {
+                case "top":
+                  sourceX = sourceRect.left + sourceRect.width / 2;
+                  sourceY = sourceRect.top;
+                  break;
+                case "right":
+                  sourceX = sourceRect.right;
+                  sourceY = sourceRect.top + sourceRect.height / 2;
+                  break;
+                case "bottom":
+                  sourceX = sourceRect.left + sourceRect.width / 2;
+                  sourceY = sourceRect.bottom;
+                  break;
+                case "left":
+                  sourceX = sourceRect.left;
+                  sourceY = sourceRect.top + sourceRect.height / 2;
+                  break;
+                default:
+                  if (line.sourceSide && line.sourceSide.includes("top")) {
+                    sourceY = sourceRect.top;
+                  } else if (line.sourceSide && line.sourceSide.includes("bottom")) {
+                    sourceY = sourceRect.bottom;
+                  } else {
+                    sourceY = sourceRect.top + sourceRect.height / 2;
+                  }
+    
+                  if (line.sourceSide && line.sourceSide.includes("left")) {
+                    sourceX = sourceRect.left;
+                  } else if (line.sourceSide && line.sourceSide.includes("right")) {
+                    sourceX = sourceRect.right;
+                  } else {
+                    sourceX = sourceRect.left + sourceRect.width / 2;
+                  }
+              }
+            }
+    
+            // Calcul du point cible
+            if (targetShapeType === 3) {
+              const targetCenterX = targetRect.left + targetRect.width / 2;
+              const targetCenterY = targetRect.top + targetRect.height / 2;
+    
+              switch (line.targetSide) {
+                case "top-right":
+                  targetX = targetCenterX + Math.cos(Math.PI / 4) * (targetRect.width / 2);
+                  targetY = targetCenterY - Math.sin(Math.PI / 4) * (targetRect.height / 2);
+                  break;
+                case "bottom-right":
+                  targetX = targetCenterX + Math.cos(Math.PI / 4) * (targetRect.width / 2);
+                  targetY = targetCenterY + Math.sin(Math.PI / 4) * (targetRect.height / 2);
+                  break;
+                case "bottom-left":
+                  targetX = targetCenterX - Math.cos(Math.PI / 4) * (targetRect.width / 2);
+                  targetY = targetCenterY + Math.sin(Math.PI / 4) * (targetRect.height / 2);
+                  break;
+                case "top-left":
+                  targetX = targetCenterX - Math.cos(Math.PI / 4) * (targetRect.width / 2);
+                  targetY = targetCenterY - Math.sin(Math.PI / 4) * (targetRect.height / 2);
+                  break;
+                default:
+                  targetX = targetCenterX;
+                  targetY = targetCenterY;
+              }
+            } else {
+              switch (line.targetSide) {
+                case "top":
+                  targetX = targetRect.left + targetRect.width / 2;
+                  targetY = targetRect.top;
+                  break;
+                case "right":
+                  targetX = targetRect.right;
+                  targetY = targetRect.top + targetRect.height / 2;
+                  break;
+                case "bottom":
+                  targetX = targetRect.left + targetRect.width / 2;
+                  targetY = targetRect.bottom;
+                  break;
+                case "left":
+                  targetX = targetRect.left;
+                  targetY = targetRect.top + targetRect.height / 2;
+                  break;
+                default:
+                  if (line.targetSide && line.targetSide.includes("top")) {
+                    targetY = targetRect.top;
+                  } else if (line.targetSide && line.targetSide.includes("bottom")) {
+                    targetY = targetRect.bottom;
+                  } else {
+                    targetY = targetRect.top + targetRect.height / 2;
+                  }
+    
+                  if (line.targetSide && line.targetSide.includes("left")) {
+                    targetX = targetRect.left;
+                  } else if (line.targetSide && line.targetSide.includes("right")) {
+                    targetX = targetRect.right;
+                  } else {
+                    targetX = targetRect.left + targetRect.width / 2;
+                  }
+              }
+            }
+    
+            if (isNaN(sourceX) || isNaN(sourceY) || isNaN(targetX) || isNaN(targetY)) {
+              return null;
+            }
+    
+            const controlDistance = Math.min(
+              Math.abs(targetX - sourceX),
+              Math.abs(targetY - sourceY)
+            ) / 2 + 50;
+    
+            let sourceControlX, sourceControlY, targetControlX, targetControlY;
+    
+            // Points de contrôle pour les courbes de Bézier
+            switch (line.sourceSide) {
+              case "top":
+                sourceControlX = sourceX;
+                sourceControlY = sourceY - controlDistance;
+                break;
+              case "right":
+                sourceControlX = sourceX + controlDistance;
+                sourceControlY = sourceY;
+                break;
+              case "bottom":
+                sourceControlX = sourceX;
+                sourceControlY = sourceY + controlDistance;
+                break;
+              case "left":
+                sourceControlX = sourceX - controlDistance;
+                sourceControlY = sourceY;
+                break;
+              default:
+                if (line.sourceSide && line.sourceSide.includes("top")) {
+                  sourceControlY = sourceY - controlDistance / 2;
+                } else {
+                  sourceControlY = sourceY + controlDistance / 2;
+                }
+                if (line.sourceSide && line.sourceSide.includes("right")) {
+                  sourceControlX = sourceX + controlDistance / 2;
+                } else {
+                  sourceControlX = sourceX - controlDistance / 2;
+                }
+            }
+    
+            switch (line.targetSide) {
+              case "top":
+                targetControlX = targetX;
+                targetControlY = targetY - controlDistance;
+                break;
+              case "right":
+                targetControlX = targetX + controlDistance;
+                targetControlY = targetY;
+                break;
+              case "bottom":
+                targetControlX = targetX;
+                targetControlY = targetY + controlDistance;
+                break;
+              case "left":
+                targetControlX = targetX - controlDistance;
+                targetControlY = targetY;
+                break;
+              default:
+                if (line.targetSide && line.targetSide.includes("top")) {
+                  targetControlY = targetY - controlDistance / 2;
+                } else {
+                  targetControlY = targetY + controlDistance / 2;
+                }
+                if (line.targetSide && line.targetSide.includes("right")) {
+                  targetControlX = targetX + controlDistance / 2;
+                } else {
+                  targetControlX = targetX - controlDistance / 2;
+                }
+            }
+    
+            const path = `M ${sourceX},${sourceY} C ${sourceControlX},${sourceControlY} ${targetControlX},${targetControlY} ${targetX},${targetY}`;
+    
+            return {
+              id: line.id,
+              path,
+              color: line.color || "#2c3e50",
+              thickness: line.thickness || 2,
+              toolType: line.toolType,
+            };
+          } catch (error) {
+            console.error("Error calculating connection for line:", line, error);
+            return null;
+          }
+        })
+        .filter((conn) => conn !== null);
+    
+      console.log(`✅ ${newConnections.length} connexions calculées via useMemo`);
+      return newConnections;
+    }, [
+      // Dépendances intelligentes : seulement ce qui affecte vraiment les connexions
+      lines.map(l => `${l.id}-${l.source}-${l.target}-${l.sourceSide}-${l.targetSide}`).join(','),
+      elements.map(e => `${e.id}-${e.x}-${e.y}-${e.width}-${e.height}-${e.type}`).join(','),
+      tempPosition // Ajouter tempPosition pour recalculer pendant le déplacement
+    ]);
+
+
+
+
+    useEffect(() => {
+      console.log('🔄 Mise à jour SVG connections depuis useMemo');
+      setSvgConnections(connectionData);
+    }, [connectionData]);
+
+    useEffect(() => {
+      if (uuid) {
+        console.log('🎯 Élément sélectionné:', uuid);
+        // Ne pas déclencher de mise à jour des connexions ici
+      }
+    }, [uuid]);
+
+    const deleteElement = useCallback((elementId) => {
+
+      if (deletingElements.has(elementId)) return;
+
+      const linesToKeep = lines.filter(line => line.source !== elementId && line.target !== elementId);
+      const elementsToKeep = elements.filter(el => el.id !== elementId);
+
+
+
       setElements(elementsToKeep);
       setLines(linesToKeep);
-      
-      // Propagation sans délai
+
       if (!isInitialRender.current) {
         if (propSetElements) propSetElements(elementsToKeep);
         if (propSetLines) propSetLines(linesToKeep);
         if (onDataChange) onDataChange(elementsToKeep, linesToKeep);
       }
-      
-    }, [elements, lines, deletingElements, updateSvgConnectionsWithLines, propSetElements, propSetLines, onDataChange, isInitialRender]);
+
+    }, [elements, lines, deletingElements, propSetElements, propSetLines, onDataChange, isInitialRender]);
+
     useImperativeHandle(ref, () => ({
       updateData: (newElements, newLines) => {
         setElements(newElements);
@@ -581,7 +612,7 @@ const updateSvgConnectionsWithLines = useCallback((specificLines) => {
           setUuid('');
         }
       };
-      
+
       document.addEventListener('keydown', handleKeyDown);
       return () => document.removeEventListener('keydown', handleKeyDown);
     }, [uuid, deleteElement, deletingElements]);
@@ -762,114 +793,70 @@ const updateSvgConnectionsWithLines = useCallback((specificLines) => {
       }
     };
 
-   
+
 
     // Fonction pour mettre à jour les connexions SVG
     const updateSvgConnections = useCallback(() => {
-      // Utiliser la fonction avec les lignes actuelles
-      updateSvgConnectionsWithLines(lines);
-    }, [lines, updateSvgConnectionsWithLines]);
+      console.log('🔄 updateSvgConnections appelée (mais gérée par useMemo)');
+      // Ne rien faire - tout est géré par le useMemo
+    }, []);
 
     // Amélioration du déplacement avec liaisons
+
+    // 2. Corriger setElementPosition pour éviter les conflits
     const setElementPosition = (e) => {
-      if (!isDown || !uuid) return;
-
-      const el = elements.find((el) => el.id === uuid);
+      if (!isDraggingRef.current || !draggedElementRef.current) return;
+    
+      const el = elements.find((el) => el.id === draggedElementRef.current);
       if (!el) return;
-
-      const currentElement = document.getElementById(uuid);
-      const rect1 = currentElement.getBoundingClientRect();
-      const rect3 = document.querySelector(".openDiv").getBoundingClientRect();
-
-      let canMove = true;
-
-      if (rect1.right > rect3.right - 10) {
-        setBlockRight(true);
-        canMove = false;
-      } else if (rect1.left < rect3.left + 8) {
-        setBlockLeft(true);
-        el.x = 8;
-        canMove = false;
-      } else if (rect1.top < rect3.top) {
-        setBlockTop(true);
-        el.y = 0;
-        canMove = false;
-      } else if (rect1.bottom > rect3.bottom) {
-        setBlockBottom(false);
-        canMove = false;
+    
+      // S'assurer que les positions sont des nombres
+      const currentX = typeof el.x === 'number' ? el.x : parseInt(el.x) || 0;
+      const currentY = typeof el.y === 'number' ? el.y : parseInt(el.y) || 0;
+      
+      const newX = currentX + e.movementX;
+      const newY = currentY + e.movementY;
+    
+      console.log('🔄 Déplacement:', {
+        elementId: el.id,
+        currentPos: { x: currentX, y: currentY },
+        movement: { x: e.movementX, y: e.movementY },
+        newPos: { x: newX, y: newY }
+      });
+    
+      // Mettre à jour la position temporaire
+      setTempPosition({ id: el.id, x: newX, y: newY });
+      
+      // Mettre à jour le DOM directement pour un mouvement fluide
+      const domElement = document.getElementById(el.id);
+      if (domElement) {
+        domElement.style.left = `${newX}px`;
+        domElement.style.top = `${newY}px`;
       }
-
-      const newX = parseInt(el.x) + e.movementX;
-      const newY = parseInt(el.y) + e.movementY;
-      const width = parseInt(el.width);
-      const height = parseInt(el.height);
-
-      if (canMove && !blockLeft && !blockRight && !blockTop && !blockBottom) {
-        const wouldOverlap = elements.some((otherEl) => {
-          if (otherEl.id === uuid) return false;
-
-          const otherX = parseInt(otherEl.x);
-          const otherY = parseInt(otherEl.y);
-          const otherWidth = parseInt(otherEl.width);
-          const otherHeight = parseInt(otherEl.height);
-
-          return (
-            newX < otherX + otherWidth &&
-            newX + width > otherX &&
-            newY < otherY + otherHeight &&
-            newY + height > otherY
-          );
-        });
-
-        if (!wouldOverlap) {
-          updateElementsAndPropagate((prevElements) => {
-            return prevElements.map((element) => {
-              if (element.id === uuid) {
-                return {
-                  ...element,
-                  x: newX,
-                  y: newY,
-                };
-              } else {
-                return element;
-              }
-            });
-          });
-
-          // Mise à jour optimisée des connexions
-          if (lines.length > 0) {
-            if (window.svgUpdateTimeout) {
-              clearTimeout(window.svgUpdateTimeout);
+      
+      // Débouncer la mise à jour des données
+      if (updateConnectionsTimeoutRef.current) {
+        clearTimeout(updateConnectionsTimeoutRef.current);
+      }
+      
+      updateConnectionsTimeoutRef.current = setTimeout(() => {
+        updateElementsAndPropagate((prevElements) => {
+          return prevElements.map((element) => {
+            if (element.id === draggedElementRef.current) {
+              return {
+                ...element,
+                x: newX,
+                y: newY,
+              };
             }
-            
-            window.svgUpdateTimeout = setTimeout(() => {
-              updateSvgConnections();
-              window.svgUpdateTimeout = null;
-            }, 50);
-          }
-        }
-      }
-
-      if (blockLeft && e.movementX > 0) {
-        setBlockLeft(false);
-      } else if (blockRight && e.movementX < 0) {
-        setBlockRight(false);
-      } else if (blockTop && e.movementY > 0) {
-        setBlockTop(false);
-      } else if (blockBottom && e.movementY < 0) {
-        setBlockBottom(false);
-      }
+            return element;
+          });
+        });
+      }, 50);
     };
 
-    useEffect(() => {
-      if (lines.length > 0) {
-        const timer = setTimeout(() => {
-          updateSvgConnections();
-        }, 100);
 
-        return () => clearTimeout(timer);
-      }
-    }, [lines, elements, updateSvgConnections]);
+
 
     const handleDotClick = (elementId, dot, side) => {
       if (!sourceElementRef.current) {
@@ -1035,45 +1022,53 @@ const updateSvgConnectionsWithLines = useCallback((specificLines) => {
     const select = (e, id) => {
       e.stopPropagation();
       e.preventDefault();
+    
+      console.log('🎯 Select élément:', id, 'Tool:', tool.tool);
+    
+      setUuid(id);
       
-      // Ne démarrer le déplacement que si l'outil de déplacement est actif
       if (tool.tool === 0) {
+        // Mode déplacement
         setMouseIsDown(true);
-        setUuid(id);
+        isDraggingRef.current = true;
+        draggedElementRef.current = id;
+        
+        // Stocker la position initiale
+        const element = elements.find(el => el.id === id);
+        if (element) {
+          initialDragPosition.current = {
+            x: typeof element.x === 'number' ? element.x : parseInt(element.x) || 0,
+            y: typeof element.y === 'number' ? element.y : parseInt(element.y) || 0
+          };
+        }
       }
     };
+  
 
-      // Nettoyage automatique des connexions orphelines
-      const cleanupConnections = useCallback(() => {
-        if (elements.length === 0) return;
-        
-        const elementIds = new Set(elements.map(el => el.id));
- 
-        // NOUVELLE VERSION SANS DÉLAI
-        const cleaned = lines.filter(line => {
-          const isValid = elementIds.has(line.source) && elementIds.has(line.target);
-          if (!isValid) {
-            console.log("🗑️ Suppression ligne orpheline:", line.id);
-          }
-          return isValid;
-        });
-        
-        // MISE À JOUR DIRECTE SANS setTimeout
-        setLines(cleaned);
-        
-        if (cleaned.length === 0) {
-          setSvgConnections([]);
-        } else {
-          updateSvgConnectionsWithLines(cleaned);
+    // Nettoyage automatique des connexions orphelines
+    const cleanupConnections = useCallback(() => {
+      if (elements.length === 0) return;
+
+      const elementIds = new Set(elements.map(el => el.id));
+
+      const cleaned = lines.filter(line => {
+        const isValid = elementIds.has(line.source) && elementIds.has(line.target);
+        if (!isValid) {
+          console.log("🗑️ Suppression ligne orpheline:", line.id);
         }
-        
-        // Propagation immédiate
-        if (!isInitialRender.current) {
-          if (propSetLines) propSetLines(cleaned);
-          if (onDataChange) onDataChange(elements, cleaned);
-        }
-        
-      }, [elements, lines, updateSvgConnectionsWithLines, propSetLines, onDataChange, isInitialRender]);
+        return isValid;
+      });
+
+      setLines(cleaned);
+
+
+
+      if (!isInitialRender.current) {
+        if (propSetLines) propSetLines(cleaned);
+        if (onDataChange) onDataChange(elements, cleaned);
+      }
+
+    }, [elements, lines, propSetLines, onDataChange, isInitialRender]);
 
     // Fonction mouseIsDown améliorée
     const mouseIsDown = (e) => {
@@ -1260,43 +1255,104 @@ const updateSvgConnectionsWithLines = useCallback((specificLines) => {
 
       return closestElement;
     };
-
-    const mouseIsUp = () => {
-      setMouseIsDown(false);
-
-      if (tool.tool === 0 && uuid && isDown) {
-        const reference = document.getElementById(uuid);
-        const dotsContainer = document.getElementById("dotsContainer");
-
-        if (reference && dotsContainer) {
-          const otherElements = Array.from(dotsContainer.children);
-          const closest = findClosestElement(reference, otherElements);
-
-          if (closest) {
-            updateElementsAndPropagate((prevElements) => {
-              return prevElements.map((element) => {
-                if (element.id === uuid) {
-                  return {
-                    ...element,
-                    x: closest.getAttribute("x"),
-                    y: closest.getAttribute("y"),
-                  };
-                } else {
-                  return element;
-                }
-              });
-            });
-          }
+    const findClosestDot = (x, y, dots) => {
+      let closestDot = null;
+      let minDistance = Infinity;
+      
+      dots.forEach((dot) => {
+        const dotX = parseInt(dot.getAttribute("x"));
+        const dotY = parseInt(dot.getAttribute("y"));
+        
+        const distance = Math.sqrt(
+          Math.pow(x - dotX, 2) + Math.pow(y - dotY, 2)
+        );
+        
+        if (distance < minDistance && distance < 25) { // Seuil de 25px
+          minDistance = distance;
+          closestDot = dot;
         }
-      }
-
-      if (lines.length > 0) {
-        setTimeout(() => {
-          updateSvgConnections();
-        }, 100);
-      }
+      });
+      
+      return closestDot;
     };
 
+    const mouseIsUp = () => {
+      console.log('🔴 MouseUp - État du drag:', {
+        isDragging: isDraggingRef.current,
+        draggedElement: draggedElementRef.current,
+        tempPosition: tempPosition
+      });
+    
+      const wasDragging = isDraggingRef.current;
+      const draggedId = draggedElementRef.current;
+      
+      // Réinitialiser les états de déplacement
+      setMouseIsDown(false);
+      isDraggingRef.current = false;
+      
+      // Si on était en train de déplacer
+      if (wasDragging && draggedId) {
+        // Annuler le timeout de mise à jour
+        if (updateConnectionsTimeoutRef.current) {
+          clearTimeout(updateConnectionsTimeoutRef.current);
+          updateConnectionsTimeoutRef.current = null;
+        }
+        
+        // Position finale à appliquer
+        let finalX, finalY;
+        
+        // Utiliser tempPosition si disponible, sinon position DOM
+        if (tempPosition && tempPosition.id === draggedId) {
+          finalX = tempPosition.x;
+          finalY = tempPosition.y;
+        } else {
+          const domElement = document.getElementById(draggedId);
+          if (domElement) {
+            finalX = parseInt(domElement.style.left) || 0;
+            finalY = parseInt(domElement.style.top) || 0;
+          }
+        }
+        
+        // Appliquer le magnétisme à la grille si activé
+        if (tool.tool === 0 && finalX !== undefined && finalY !== undefined) {
+          const dotsContainer = document.getElementById("dotsContainer");
+          const reference = document.getElementById(draggedId);
+          
+          if (reference && dotsContainer) {
+            const dots = Array.from(dotsContainer.children);
+            const closest = findClosestDot(finalX, finalY, dots);
+            
+            if (closest) {
+              finalX = parseInt(closest.getAttribute("x"));
+              finalY = parseInt(closest.getAttribute("y"));
+              console.log('🧲 Magnétisme appliqué:', { x: finalX, y: finalY });
+            }
+          }
+        }
+        
+        // Mise à jour finale de la position
+        if (finalX !== undefined && finalY !== undefined) {
+          updateElementsAndPropagate((prevElements) => {
+            return prevElements.map((element) => {
+              if (element.id === draggedId) {
+                console.log('✅ Position finale appliquée:', { id: draggedId, x: finalX, y: finalY });
+                return {
+                  ...element,
+                  x: finalX,
+                  y: finalY,
+                };
+              }
+              return element;
+            });
+          });
+        }
+        
+        // Nettoyer les états temporaires
+        setTempPosition(null);
+        draggedElementRef.current = null;
+        initialDragPosition.current = null;
+      }
+    };
     const setDimensions = (e, active) => {
       if (
         (isDown && tool.tool !== 0 && tool.tool < 6 && tool.tool != -1) ||
@@ -1359,12 +1415,7 @@ const updateSvgConnectionsWithLines = useCallback((specificLines) => {
         });
       }
     };
-    useEffect(() => {
-      if (elements.length > 0) {
-        // ✅ SUPPRESSION du setTimeout - Nettoyage immédiat
-        cleanupConnections();
-      }
-    }, [elements, cleanupConnections]);
+
     const setTextElement = () => {
       const el = document.getElementById("input" + uuid);
       if (el) {
@@ -1391,17 +1442,32 @@ const updateSvgConnectionsWithLines = useCallback((specificLines) => {
       return Math.max(9, Math.min(baseSize, 20)) + "px";
     };
 
+    useEffect(() => {
+      const logDragState = () => {
+        console.log('📊 État du système de drag:', {
+          isDragging: isDraggingRef.current,
+          draggedElement: draggedElementRef.current,
+          tempPosition: tempPosition,
+          tool: tool.tool,
+          isDown: isDown
+        });
+      };
+      
+      // Log toutes les 2 secondes pendant le développement
+      const interval = setInterval(logDragState, 2000);
+      
+      return () => clearInterval(interval);
+    }, [tempPosition, tool.tool, isDown]);
+
     return (
       <div style={{ flex: "auto" }}>
         <div
           id="boxs"
           onMouseMove={(e) => {
-            if (isDown) {
-              if (tool.tool !== 0 && tool.tool < 6) {
-                setDimensions(e, false);
-              } else if (tool.tool === 0) {
-                setElementPosition(e);
-              }
+            if (isDraggingRef.current && tool.tool === 0) {
+              setElementPosition(e);
+            } else if (isDown && tool.tool !== 0 && tool.tool < 6) {
+              setDimensions(e, false);
             }
           }}
           className="col"
@@ -1443,84 +1509,84 @@ const updateSvgConnectionsWithLines = useCallback((specificLines) => {
             }}
           >
             {/* Conteneur SVG pour les connexions */}
-<svg
-  className="connections-container"
-  style={{
-    position: "absolute",
-    top: 0,
-    left: 0,
-    width: `${canvasSize.width}px`,    // ✅ Taille complète du canvas
-    height: `${canvasSize.height}px`,  // ✅ Taille complète du canvas
-    pointerEvents: "none",
-    zIndex: 9000,
-  }}
->
-  <defs>
-    {svgConnections &&
-      svgConnections.map((conn) => {
-        if (
-          !conn.toolType ||
-          conn.toolType === 6 ||
-          conn.toolType === 7
-        ) {
-          return (
-            <marker
-              key={`marker-${conn.id}`}
-              id={`arrowhead-${conn.id}`}
-              markerWidth="10"
-              markerHeight="7"
-              refX="9"
-              refY="3.5"
-              orient="auto"
+            <svg
+              className="connections-container"
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: `${canvasSize.width}px`,    // ✅ Taille complète du canvas
+                height: `${canvasSize.height}px`,  // ✅ Taille complète du canvas
+                pointerEvents: "none",
+                zIndex: 9000,
+              }}
             >
-              <circle cx="8" cy="3.5" r="2" fill={conn.color} />
-            </marker>
-          );
-        }
-        return null;
-      })}
-  </defs>
+              <defs>
+                {svgConnections &&
+                  svgConnections.map((conn) => {
+                    if (
+                      !conn.toolType ||
+                      conn.toolType === 6 ||
+                      conn.toolType === 7
+                    ) {
+                      return (
+                        <marker
+                          key={`marker-${conn.id}`}
+                          id={`arrowhead-${conn.id}`}
+                          markerWidth="10"
+                          markerHeight="7"
+                          refX="9"
+                          refY="3.5"
+                          orient="auto"
+                        >
+                          <circle cx="8" cy="3.5" r="2" fill={conn.color} />
+                        </marker>
+                      );
+                    }
+                    return null;
+                  })}
+              </defs>
 
-  {svgConnections &&
-    svgConnections.map((conn) => {
-      if (!conn.toolType || conn.toolType === 6) {
-        return (
-          <path
-            key={`path-${conn.id}`}
-            d={conn.path}
-            stroke={conn.color}
-            strokeWidth={conn.thickness}
-            fill="none"
-            markerEnd={`url(#arrowhead-${conn.id})`}
-          />
-        );
-      } else if (conn.toolType === 7) {
-        return (
-          <path
-            key={`path-${conn.id}`}
-            d={conn.path}
-            stroke={conn.color}
-            strokeWidth={conn.thickness}
-            fill="none"
-            strokeDasharray="5,5"
-            markerEnd={`url(#arrowhead-${conn.id})`}
-          />
-        );
-      } else if (conn.toolType === 8) {
-        return (
-          <path
-            key={`path-${conn.id}`}
-            d={conn.path}
-            stroke={conn.color}
-            strokeWidth={conn.thickness}
-            fill="none"
-            strokeDasharray="2,4"
-          />
-        );
-      }
-      return null;
-    })}
-</svg>
+              {svgConnections &&
+                svgConnections.map((conn) => {
+                  if (!conn.toolType || conn.toolType === 6) {
+                    return (
+                      <path
+                        key={`path-${conn.id}`}
+                        d={conn.path}
+                        stroke={conn.color}
+                        strokeWidth={conn.thickness}
+                        fill="none"
+                        markerEnd={`url(#arrowhead-${conn.id})`}
+                      />
+                    );
+                  } else if (conn.toolType === 7) {
+                    return (
+                      <path
+                        key={`path-${conn.id}`}
+                        d={conn.path}
+                        stroke={conn.color}
+                        strokeWidth={conn.thickness}
+                        fill="none"
+                        strokeDasharray="5,5"
+                        markerEnd={`url(#arrowhead-${conn.id})`}
+                      />
+                    );
+                  } else if (conn.toolType === 8) {
+                    return (
+                      <path
+                        key={`path-${conn.id}`}
+                        d={conn.path}
+                        stroke={conn.color}
+                        strokeWidth={conn.thickness}
+                        fill="none"
+                        strokeDasharray="2,4"
+                      />
+                    );
+                  }
+                  return null;
+                })}
+            </svg>
             {/* Rendu des éléments */}
             {elements
               .filter((el) => el.id)
@@ -1548,9 +1614,8 @@ const updateSvgConnectionsWithLines = useCallback((specificLines) => {
                     background: elementStyle.type == 5 ? `url('data:image/svg+xml;utf8,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="2.9 2.9 23.2 18.2" preserveAspectRatio="none"%3E%3Cpath d="M6 3 H23 L23 6 C23 6.55228 23.4477 7 24 7 H26 V18 C26 19.6568 24.6569 21 23 21 H6 C4.34315 21 3 19.6569 3 18 V6 C3 4.34315 4.34315 3 6 3 Z" fill="white" stroke="%23333333" stroke-width="0.63" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/%3E%3Cpath d="M23 3V6C23 6.55228 23.4477 7 24 7H26L23 3Z" fill="%23EEEEEE" stroke="%23333333" stroke-width="0.63" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/%3E%3C/svg%3E') center no-repeat` : "",
                     backgroundSize: elementStyle.type == 5 ? "100% 100%" : "",
                     borderRadius: elementStyle.radius,
-                    border: elementStyle.type == 5 ? "" : `${elementStyle.border.split(" ")[0]} solid ${
-                      elementStyle.borderColor || "gray"
-                    }`,
+                    border: elementStyle.type == 5 ? "" : `${elementStyle.border.split(" ")[0]} solid ${elementStyle.borderColor || "gray"
+                      }`,
                     backgroundColor: elementStyle.type == 5 ? "" : elementStyle.bgColor,
                     opacity:
                       elementStyle.opacity !== undefined
