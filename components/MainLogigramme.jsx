@@ -257,6 +257,120 @@ const MainLogigramme = forwardRef(
         type: el.type
       }));
 
+      // Fonction pour calculer les positions réelles des dots en tenant compte des transformations
+      const calculateRealDotPosition = (element, elementRect, side) => {
+        const centerX = elementRect.left + elementRect.width / 2;
+        const centerY = elementRect.top + elementRect.height / 2;
+        
+        if (element.type === 3) {
+          // Losange - dots aux coins avec translate(±35%, ±35%) et rotation de 45°
+          let dotX, dotY;
+          
+          switch (side) {
+            case "top-right":
+              // Position avant transformation: coin top-right avec translate(35%, -35%)
+              dotX = elementRect.right + (elementRect.width * 0.35);
+              dotY = elementRect.top - (elementRect.height * 0.35);
+              break;
+            case "bottom-right":
+              // Position avant transformation: coin bottom-right avec translate(35%, 35%)
+              dotX = elementRect.right + (elementRect.width * 0.35);
+              dotY = elementRect.bottom + (elementRect.height * 0.35);
+              break;
+            case "bottom-left":
+              // Position avant transformation: coin bottom-left avec translate(-35%, 35%)
+              dotX = elementRect.left - (elementRect.width * 0.35);
+              dotY = elementRect.bottom + (elementRect.height * 0.35);
+              break;
+            case "top-left":
+              // Position avant transformation: coin top-left avec translate(-35%, -35%)
+              dotX = elementRect.left - (elementRect.width * 0.35);
+              dotY = elementRect.top - (elementRect.height * 0.35);
+              break;
+            default:
+              dotX = centerX;
+              dotY = centerY;
+          }
+          
+          // Appliquer la rotation de 45° autour du centre de l'élément
+          const relativeX = dotX - centerX;
+          const relativeY = dotY - centerY;
+          const angle = Math.PI / 4; // 45 degrés
+          const cos45 = Math.cos(angle);
+          const sin45 = Math.sin(angle);
+          
+          const rotatedX = relativeX * cos45 - relativeY * sin45;
+          const rotatedY = relativeX * sin45 + relativeY * cos45;
+          
+          return {
+            x: centerX + rotatedX,
+            y: centerY + rotatedY
+          };
+        } else if (element.type === 4) {
+          // Parallélogramme - dots avec offset de -10px et skewX(-15deg)
+          let dotX, dotY;
+          
+          switch (side) {
+            case "top":
+              dotX = centerX;
+              dotY = elementRect.top - 10;
+              break;
+            case "right":
+              dotX = elementRect.right + 10;
+              dotY = centerY;
+              break;
+            case "bottom":
+              dotX = centerX;
+              dotY = elementRect.bottom + 10;
+              break;
+            case "left":
+              dotX = elementRect.left - 10;
+              dotY = centerY;
+              break;
+            default:
+              return { x: centerX, y: centerY };
+          }
+          
+          // Appliquer skewX(-15deg)
+          const skewAngle = -15 * Math.PI / 180;
+          const relativeY = dotY - centerY;
+          const skewedX = dotX + relativeY * Math.tan(skewAngle);
+          
+          return {
+            x: skewedX,
+            y: dotY
+          };
+        } else if (element.type === 2) {
+          // Cercle - dots avec offset de -10px
+          switch (side) {
+            case "top":
+              return { x: centerX, y: elementRect.top - 10 };
+            case "right":
+              return { x: elementRect.right + 10, y: centerY };
+            case "bottom":
+              return { x: centerX, y: elementRect.bottom + 10 };
+            case "left":
+              return { x: elementRect.left - 10, y: centerY };
+            default:
+              return { x: centerX, y: centerY };
+          }
+        } else {
+          // Autres formes (rectangle) - dots avec offset de -10px
+          switch (side) {
+            case "top":
+              return { x: centerX, y: elementRect.top - 10 };
+            case "right":
+              return { x: elementRect.right + 10, y: centerY };
+            case "bottom":
+              return { x: centerX, y: elementRect.bottom + 10 };
+            case "left":
+              return { x: elementRect.left - 10, y: centerY };
+            default:
+              return { x: centerX, y: centerY };
+          }
+        }
+      };
+
       const newConnections = lines
         .map((line) => {
           try {
@@ -285,132 +399,14 @@ const MainLogigramme = forwardRef(
               bottom: targetElement.y + targetElement.height
             };
 
-            let sourceX, sourceY, targetX, targetY;
+            // Utiliser la nouvelle fonction pour calculer les positions
+            const sourcePosition = calculateRealDotPosition(sourceElement, sourceRect, line.sourceSide);
+            const sourceX = sourcePosition.x;
+            const sourceY = sourcePosition.y;
 
-            // Calcul points source et target selon le type de forme
-            if (sourceElement.type === 3) {
-              const sourceCenterX = sourceRect.left + sourceRect.width / 2;
-              const sourceCenterY = sourceRect.top + sourceRect.height / 2;
-
-              switch (line.sourceSide) {
-                case "top-right":
-                  sourceX = sourceCenterX + Math.cos(Math.PI / 4) * (sourceRect.width / 2);
-                  sourceY = sourceCenterY - Math.sin(Math.PI / 4) * (sourceRect.height / 2);
-                  break;
-                case "bottom-right":
-                  sourceX = sourceCenterX + Math.cos(Math.PI / 4) * (sourceRect.width / 2);
-                  sourceY = sourceCenterY + Math.sin(Math.PI / 4) * (sourceRect.height / 2);
-                  break;
-                case "bottom-left":
-                  sourceX = sourceCenterX - Math.cos(Math.PI / 4) * (sourceRect.width / 2);
-                  sourceY = sourceCenterY + Math.sin(Math.PI / 4) * (sourceRect.height / 2);
-                  break;
-                case "top-left":
-                  sourceX = sourceCenterX - Math.cos(Math.PI / 4) * (sourceRect.width / 2);
-                  sourceY = sourceCenterY - Math.sin(Math.PI / 4) * (sourceRect.height / 2);
-                  break;
-                default:
-                  sourceX = sourceCenterX;
-                  sourceY = sourceCenterY;
-              }
-            } else {
-              switch (line.sourceSide) {
-                case "top":
-                  sourceX = sourceRect.left + sourceRect.width / 2;
-                  sourceY = sourceRect.top;
-                  break;
-                case "right":
-                  sourceX = sourceRect.right;
-                  sourceY = sourceRect.top + sourceRect.height / 2;
-                  break;
-                case "bottom":
-                  sourceX = sourceRect.left + sourceRect.width / 2;
-                  sourceY = sourceRect.bottom;
-                  break;
-                case "left":
-                  sourceX = sourceRect.left;
-                  sourceY = sourceRect.top + sourceRect.height / 2;
-                  break;
-                default:
-                  if (line.sourceSide && line.sourceSide.includes("top")) {
-                    sourceY = sourceRect.top;
-                  } else if (line.sourceSide && line.sourceSide.includes("bottom")) {
-                    sourceY = sourceRect.bottom;
-                  } else {
-                    sourceY = sourceRect.top + sourceRect.height / 2;
-                  }
-
-                  if (line.sourceSide && line.sourceSide.includes("left")) {
-                    sourceX = sourceRect.left;
-                  } else if (line.sourceSide && line.sourceSide.includes("right")) {
-                    sourceX = sourceRect.right;
-                  } else {
-                    sourceX = sourceRect.left + sourceRect.width / 2;
-                  }
-              }
-            }
-
-            if (targetElement.type === 3) {
-              const targetCenterX = targetRect.left + targetRect.width / 2;
-              const targetCenterY = targetRect.top + targetRect.height / 2;
-
-              switch (line.targetSide) {
-                case "top-right":
-                  targetX = targetCenterX + Math.cos(Math.PI / 4) * (targetRect.width / 2);
-                  targetY = targetCenterY - Math.sin(Math.PI / 4) * (targetRect.height / 2);
-                  break;
-                case "bottom-right":
-                  targetX = targetCenterX + Math.cos(Math.PI / 4) * (targetRect.width / 2);
-                  targetY = targetCenterY + Math.sin(Math.PI / 4) * (targetRect.height / 2);
-                  break;
-                case "bottom-left":
-                  targetX = targetCenterX - Math.cos(Math.PI / 4) * (targetRect.width / 2);
-                  targetY = targetCenterY + Math.sin(Math.PI / 4) * (targetRect.height / 2);
-                  break;
-                case "top-left":
-                  targetX = targetCenterX - Math.cos(Math.PI / 4) * (targetRect.width / 2);
-                  targetY = targetCenterY - Math.sin(Math.PI / 4) * (targetRect.height / 2);
-                  break;
-                default:
-                  targetX = targetCenterX;
-                  targetY = targetCenterY;
-              }
-            } else {
-              switch (line.targetSide) {
-                case "top":
-                  targetX = targetRect.left + targetRect.width / 2;
-                  targetY = targetRect.top;
-                  break;
-                case "right":
-                  targetX = targetRect.right;
-                  targetY = targetRect.top + targetRect.height / 2;
-                  break;
-                case "bottom":
-                  targetX = targetRect.left + targetRect.width / 2;
-                  targetY = targetRect.bottom;
-                  break;
-                case "left":
-                  targetX = targetRect.left;
-                  targetY = targetRect.top + targetRect.height / 2;
-                  break;
-                default:
-                  if (line.targetSide && line.targetSide.includes("top")) {
-                    targetY = targetRect.top;
-                  } else if (line.targetSide && line.targetSide.includes("bottom")) {
-                    targetY = targetRect.bottom;
-                  } else {
-                    targetY = targetRect.top + targetRect.height / 2;
-                  }
-
-                  if (line.targetSide && line.targetSide.includes("left")) {
-                    targetX = targetRect.left;
-                  } else if (line.targetSide && line.targetSide.includes("right")) {
-                    targetX = targetRect.right;
-                  } else {
-                    targetX = targetRect.left + targetRect.width / 2;
-                  }
-              }
-            }
+            const targetPosition = calculateRealDotPosition(targetElement, targetRect, line.targetSide);
+            const targetX = targetPosition.x;
+            const targetY = targetPosition.y;
 
             if (isNaN(sourceX) || isNaN(sourceY) || isNaN(targetX) || isNaN(targetY)) {
               return null;
@@ -581,13 +577,9 @@ const MainLogigramme = forwardRef(
         } else {
           positions = [
             { side: "top", top: "-10px", left: "50%", transform: "translateX(-50%)" },
-            { side: "top-right", top: "-10px", right: "0", transform: "translate(50%, 0)" },
             { side: "right", top: "50%", right: "-10px", transform: "translateY(-50%)" },
-            { side: "bottom-right", bottom: "-10px", right: "0", transform: "translate(50%, 0)" },
             { side: "bottom", bottom: "-10px", left: "50%", transform: "translateX(-50%)" },
-            { side: "bottom-left", bottom: "-10px", left: "0", transform: "translate(-50%, 0)" },
             { side: "left", top: "50%", left: "-10px", transform: "translateY(-50%)" },
-            { side: "top-left", top: "-10px", left: "0", transform: "translate(-50%, 0)" },
           ];
         }
 
@@ -907,34 +899,25 @@ const MainLogigramme = forwardRef(
       dotContainer.style.position = "absolute";
       dotContainer.style.top = "0";
       dotContainer.style.left = "0";
-      dotContainer.style.width = "100%";
-      dotContainer.style.height = "100%";
+      dotContainer.style.width = `${canvasSize.width}px`;
+      dotContainer.style.height = `${canvasSize.height}px`;
       dotContainer.style.pointerEvents = "none";
+      dotContainer.style.zIndex = "1";
       dotContainer.id = "dotsContainer";
 
-      const containerEl = document.querySelector(".openDiv");
-      if (!containerEl) return;
-
-      const currentZoom = parseFloat(containerEl.style.zoom || "100") / 100 || 1;
-      const containerRect = containerEl.getBoundingClientRect();
-      const scrollLeft = containerEl.scrollLeft;
-      const scrollTop = containerEl.scrollTop;
-
-      const visibleWidth = containerRect.width / currentZoom;
-      const visibleHeight = containerRect.height / currentZoom;
-
       const baseSpacing = 25;
-      const spacing = Math.max(baseSpacing, (baseSpacing / Math.max(0.1, currentZoom)) * 0.5);
+      const spacing = baseSpacing;
 
-      const startX = Math.floor(scrollLeft / spacing) * spacing;
-      const startY = Math.floor(scrollTop / spacing) * spacing;
-      const endX = Math.ceil((scrollLeft + visibleWidth * 2) / spacing) * spacing;
-      const endY = Math.ceil((scrollTop + visibleHeight * 2) / spacing) * spacing;
+      // Couvrir toute la surface du canvas
+      const startX = 0;
+      const startY = 0;
+      const endX = canvasSize.width;
+      const endY = canvasSize.height;
 
-      const dotsX = Math.floor((endX - startX) / spacing) + 1;
-      const dotsY = Math.floor((endY - startY) / spacing) + 1;
+      const dotsX = Math.floor(endX / spacing) + 1;
+      const dotsY = Math.floor(endY / spacing) + 1;
 
-      const batchSize = 200;
+      const batchSize = 500;
       let batch = [];
 
       for (let y = 0; y < dotsY; y++) {
@@ -942,11 +925,14 @@ const MainLogigramme = forwardRef(
           const dotX = startX + x * spacing;
           const dotY = startY + y * spacing;
 
-          batch.push({ x: dotX, y: dotY });
+          // S'assurer que les dots restent dans les limites du canvas
+          if (dotX <= canvasSize.width && dotY <= canvasSize.height) {
+            batch.push({ x: dotX, y: dotY });
 
-          if (batch.length >= batchSize) {
-            processDotBatch(batch, dotContainer, dotBgColor, setDotPosition);
-            batch = [];
+            if (batch.length >= batchSize) {
+              processDotBatch(batch, dotContainer, dotBgColor, setDotPosition);
+              batch = [];
+            }
           }
         }
       }
@@ -959,7 +945,7 @@ const MainLogigramme = forwardRef(
       if (openDiv) {
         openDiv.appendChild(dotContainer);
       }
-    }, []);
+    }, [canvasSize.width, canvasSize.height]);
 
     const processDotBatch = (batch, container, dotBgColor, setDotPosition) => {
       batch.forEach((dotData) => {
