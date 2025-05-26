@@ -1,30 +1,36 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import "./globals.css";
 import MainLogigramme from "../components/MainLogigramme.jsx";
 import { PopoverPicker } from "../components/PopoverPicker";
 
 export default function Home() {
+  // États principaux
   const [tool, setTool] = useState({ tool: 0 });
   const [uuid, setUuid] = useState("");
   const [color, setColor] = useState("#ffffff");
   const [menuVisible, setMenuVisible] = useState(false);
-
-  // References to diagram data
   const [elements, setElements] = useState([]);
   const [lines, setLines] = useState([]);
-
-  // State to manage loading
   const [isLoading, setIsLoading] = useState(true);
   const [isComponentMounted, setIsComponentMounted] = useState(false);
-
-  // State for zoom
   const [nzoom, setNzoom] = useState("100%");
 
-  // Reference to access child component methods
+  // Refs
   const logigrammeRef = useRef(null);
+  const elementsRef = useRef(elements);
+  const linesRef = useRef(lines);
 
-  // Effect for initial loading
+  // Mise à jour des refs
+  useEffect(() => {
+    elementsRef.current = elements;
+  }, [elements]);
+
+  useEffect(() => {
+    linesRef.current = lines;
+  }, [lines]);
+
+  // Initialisation
   useEffect(() => {
     setIsComponentMounted(true);
     const timer = setTimeout(() => {
@@ -33,201 +39,166 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Effect to update menu visibility when an element is selected
+  // Gestion visibilité menu
   useEffect(() => {
-    // Show menu only when an element is selected (uuid is not empty)
+    setMenuVisible(!!uuid && tool.tool === 0);
 
-    setMenuVisible(!!uuid && tool.tool == 0);
-
-    // Update color from selected element if available
     if (uuid && elements.length > 0) {
       const selectedElement = elements.find((el) => el.id === uuid);
-      if (selectedElement) {
+      if (selectedElement && selectedElement.bgColor !== color) {
         setColor(selectedElement.bgColor || "#ffffff");
       }
     }
-  }, [uuid, elements, tool]);
+  }, [uuid, tool.tool]);
 
-  // Callback function to receive UUID from child component
-  const handleUuidChange = (newUuid) => {
+  // Callbacks vers enfant
+  const handleUuidChange = useCallback((newUuid) => {
     setUuid(newUuid);
-  };
+  }, []);
 
-  // Callback function to receive element and line updates
-  const handleDataChange = (newElements, newLines) => {
-    if (isComponentMounted) {
-      setElements(newElements);
-      setLines(newLines);
-    }
-  };
-
-  // Function to manage text input for selected element
-  const manageInput = () => {
-    if (!uuid || !logigrammeRef.current) return;
-
-    // Set tool to text edit mode (-1)
-    const newTool = { tool: -1 };
-    setTool(newTool);
-
-    // Call the child component's internal method through ref
-    setTimeout(() => {
-      if (logigrammeRef.current) {
-        // Focus the text input of the selected element
-        const el = document.getElementById("input" + uuid);
-        if (el) {
-          el.style.display = "flex";
-          el.style.zIndex = "3";
-          el.focus();
+  const handleDataChange = useCallback(
+    (newElements, newLines) => {
+      if (isComponentMounted) {
+        if (newElements !== elementsRef.current) {
+          setElements(newElements);
+        }
+        if (newLines !== linesRef.current) {
+          setLines(newLines);
         }
       }
-    }, 10);
-  };
+    },
+    [isComponentMounted]
+  );
 
-  // Function to change color of selected element
-  const changeShapeColor = (newColor) => {
-    if (!uuid || !logigrammeRef.current) return;
+  // Fonctions d'édition d'éléments
+  const updateElement = useCallback(
+    (updates) => {
+      if (!uuid) return;
 
-    // Update elements array
-    const updatedElements = elements.map((element) => {
-      if (element.id === uuid) {
-        return {
-          ...element,
-          bgColor: newColor,
-        };
+      const updatedElements = elements.map((element) => {
+        if (element.id === uuid) {
+          return { ...element, ...updates };
+        }
+        return element;
+      });
+
+      setElements(updatedElements);
+
+      if (logigrammeRef.current?.updateData) {
+        logigrammeRef.current.updateData(updatedElements, lines);
       }
-      return element;
-    });
+    },
+    [uuid, elements, lines]
+  );
 
-    // Update state and propagate to child
-    setElements(updatedElements);
+  const changeShapeColor = useCallback(
+    (newColor) => {
+      updateElement({ bgColor: newColor });
+    },
+    [updateElement]
+  );
 
-    // Update child component if ref exists
-    if (logigrammeRef.current && logigrammeRef.current.updateData) {
-      logigrammeRef.current.updateData(updatedElements, lines);
-    }
-  };
+  const changeBorderColor = useCallback(
+    (newColor) => {
+      updateElement({ borderColor: newColor });
+    },
+    [updateElement]
+  );
 
-  // Function to delete selected element
-  const deleteElement = () => {
+  const changeTextColor = useCallback(
+    (newColor) => {
+      updateElement({ textColor: newColor });
+    },
+    [updateElement]
+  );
+
+  const changeTextAlign = useCallback(
+    (alignment) => {
+      updateElement({ textAlign: alignment });
+    },
+    [updateElement]
+  );
+
+  const changeTextVerticalAlign = useCallback(
+    (alignment) => {
+      updateElement({ textVerticalAlign: alignment });
+    },
+    [updateElement]
+  );
+
+  const changeOpacity = useCallback(
+    (newOpacity) => {
+      updateElement({ opacity: newOpacity });
+    },
+    [updateElement]
+  );
+
+  // Gestion du texte
+  const manageInput = useCallback(() => {
     if (!uuid || !logigrammeRef.current) return;
 
-    // Filter out the element with uuid
-    const updatedElements = elements.filter((element) => element.id !== uuid);
+    setTool({ tool: -1 });
 
-    // Filter out any lines connected to this element
+    setTimeout(() => {
+      const el = document.getElementById("input" + uuid);
+      if (el) {
+        el.style.display = "flex";
+        el.style.zIndex = "3";
+        el.focus();
+      }
+    }, 10);
+  }, [uuid]);
+
+  // Suppression d'élément
+  const deleteElement = useCallback(() => {
+    if (!uuid) return;
+
+    const updatedElements = elements.filter((element) => element.id !== uuid);
     const updatedLines = lines.filter(
       (line) => line.source !== uuid && line.target !== uuid
     );
 
-    // Update state and propagate to child
     setElements(updatedElements);
     setLines(updatedLines);
-    setUuid(""); // Clear selection
+    setUuid("");
 
-    // Update child component if ref exists
-    if (logigrammeRef.current && logigrammeRef.current.updateData) {
+    if (logigrammeRef.current?.updateData) {
       logigrammeRef.current.updateData(updatedElements, updatedLines);
     }
-  };
+  }, [uuid, elements, lines]);
 
-  // Zoom function
-  const zoomFunc = (action) => {
-    if (!logigrammeRef.current) return;
-
+  // Gestion du zoom
+  const zoomFunc = useCallback((action) => {
     const container = document.querySelector(".openDiv");
     if (!container) return;
 
     let newZoomValue;
 
-    if (action === 0) {
-      newZoomValue = parseInt(container.style.zoom || "100") + 5;
-    } else if (action === 1) {
-      newZoomValue = parseInt(container.style.zoom || "100") - 5;
-    } else {
-      newZoomValue = 100;
+    switch (action) {
+      case 0:
+        newZoomValue = parseInt(container.style.zoom || "100") + 5;
+        break;
+      case 1:
+        newZoomValue = parseInt(container.style.zoom || "100") - 5;
+        break;
+      default:
+        newZoomValue = 100;
     }
 
     newZoomValue = Math.max(10, Math.min(200, newZoomValue));
     container.style.zoom = newZoomValue + "%";
     setNzoom(newZoomValue + "%");
 
-    if (logigrammeRef.current && logigrammeRef.current.createDotPattern) {
+    if (logigrammeRef.current?.createDotPattern) {
       setTimeout(() => {
         logigrammeRef.current.createDotPattern();
       }, 100);
     }
-  };
+  }, []);
 
-  // Zoom Controls Component
-  const ZoomControls = () => {
-    return (
-      <div className="zoom-controls">
-        <button
-          disabled={nzoom === "10%"}
-          onClick={() => zoomFunc(1)}
-          style={{
-            width: "30px",
-            height: "30px",
-            border: "1px solid #ccc",
-            borderRadius: "3px",
-            background: "#fff",
-            cursor: "pointer",
-          }}
-        >
-          -
-        </button>
-
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            minWidth: "50px",
-            justifyContent: "center",
-            fontSize: "14px",
-          }}
-        >
-          {nzoom}
-        </div>
-
-        <button
-          disabled={nzoom === "200%"}
-          onClick={() => zoomFunc(0)}
-          style={{
-            width: "30px",
-            height: "30px",
-            border: "1px solid #ccc",
-            borderRadius: "3px",
-            background: "#fff",
-            cursor: "pointer",
-          }}
-        >
-          +
-        </button>
-
-        <button
-          onClick={() => zoomFunc(2)}
-          style={{
-            padding: "0 10px",
-            height: "30px",
-            border: "1px solid #ccc",
-            borderRadius: "3px",
-            background: "#fff",
-            cursor: "pointer",
-          }}
-        >
-          Reset
-        </button>
-      </div>
-    );
-  };
-
-  // Function to save diagram to JSON
-  const saveToJson = () => {
-    const saveData = {
-      elements: elements,
-      lines: lines,
-    };
-
+  // Sauvegarde et import
+  const saveToJson = useCallback(() => {
+    const saveData = { elements, lines };
     const jsonString = JSON.stringify(saveData);
     const blob = new Blob([jsonString], { type: "application/json" });
     const link = document.createElement("a");
@@ -237,10 +208,9 @@ export default function Home() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
-  };
+  }, [elements, lines]);
 
-  // Function to import a JSON file
-  const importJsonFile = (file) => {
+  const importJsonFile = useCallback((file) => {
     if (!file) return;
 
     setIsLoading(true);
@@ -253,7 +223,7 @@ export default function Home() {
         setElements(parsedData.elements || []);
         setLines(parsedData.lines || []);
 
-        if (logigrammeRef.current && logigrammeRef.current.updateData) {
+        if (logigrammeRef.current?.updateData) {
           logigrammeRef.current.updateData(
             parsedData.elements,
             parsedData.lines
@@ -268,116 +238,118 @@ export default function Home() {
     };
 
     reader.readAsText(file);
+  }, []);
+
+  // Composants
+  const ZoomControls = () => (
+    <div className="zoom-controls">
+      <button
+        disabled={nzoom === "10%"}
+        onClick={() => zoomFunc(1)}
+        style={{
+          width: "30px",
+          height: "30px",
+          border: "1px solid #ccc",
+          borderRadius: "3px",
+          background: "#fff",
+          cursor: "pointer",
+        }}
+      >
+        -
+      </button>
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          minWidth: "50px",
+          justifyContent: "center",
+          fontSize: "14px",
+        }}
+      >
+        {nzoom}
+      </div>
+
+      <button
+        disabled={nzoom === "200%"}
+        onClick={() => zoomFunc(0)}
+        style={{
+          width: "30px",
+          height: "30px",
+          border: "1px solid #ccc",
+          borderRadius: "3px",
+          background: "#fff",
+          cursor: "pointer",
+        }}
+      >
+        +
+      </button>
+
+      <button
+        onClick={() => zoomFunc(2)}
+        style={{
+          padding: "0 10px",
+          height: "30px",
+          border: "1px solid #ccc",
+          borderRadius: "3px",
+          background: "#fff",
+          cursor: "pointer",
+        }}
+      >
+        Reset
+      </button>
+    </div>
+  );
+
+  const ColorPicker = ({ value, onChange, label }) => (
+    <div className="d-flex flex-column align-items-center mx-1">
+      <PopoverPicker color={value} onChange={onChange} />
+      <small style={{ fontSize: "10px", color: "#888" }}>{label}</small>
+    </div>
+  );
+
+  const AlignmentButtons = ({ type, onChange }) => {
+    const buttons =
+      type === "text"
+        ? [
+            { value: "left", icon: "⟨", title: "Aligner à gauche" },
+            { value: "center", icon: "≡", title: "Centrer" },
+            { value: "right", icon: "⟩", title: "Aligner à droite" },
+          ]
+        : [
+            { value: "top", icon: "⌃", title: "Aligner en haut" },
+            { value: "middle", icon: "⚬", title: "Centrer verticalement" },
+            { value: "bottom", icon: "⌄", title: "Aligner en bas" },
+          ];
+
+    return (
+      <div className="d-flex flex-column align-items-center mx-1">
+        <div className="d-flex">
+          {buttons.map(({ value, icon, title }) => (
+            <button
+              key={value}
+              className="btn btn-sm btn-light p-1 mx-1"
+              onClick={() => onChange(value)}
+              title={title}
+            >
+              {icon}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
   };
 
-  // Fonction pour changer la couleur de la bordure
-  const changeBorderColor = (newColor) => {
-    if (!uuid) return;
+  const ToolButton = ({ toolId, activeIcon, inactiveIcon, alt }) => (
+    <div onClick={() => setTool({ tool: toolId })}>
+      <img src={tool.tool === toolId ? activeIcon : inactiveIcon} alt={alt} />
+    </div>
+  );
 
-    const updatedElements = elements.map((element) => {
-      if (element.id === uuid) {
-        return {
-          ...element,
-          borderColor: newColor,
-        };
-      }
-      return element;
-    });
-
-    setElements(updatedElements);
-
-    if (logigrammeRef.current && logigrammeRef.current.updateData) {
-      logigrammeRef.current.updateData(updatedElements, lines);
-    }
-  };
-
-  // Fonction pour changer la couleur du texte
-  const changeTextColor = (newColor) => {
-    if (!uuid) return;
-
-    const updatedElements = elements.map((element) => {
-      if (element.id === uuid) {
-        return {
-          ...element,
-          textColor: newColor,
-        };
-      }
-      return element;
-    });
-
-    setElements(updatedElements);
-
-    if (logigrammeRef.current && logigrammeRef.current.updateData) {
-      logigrammeRef.current.updateData(updatedElements, lines);
-    }
-  };
-
-  // Fonction pour changer l'alignement du texte
-  const changeTextAlign = (alignment) => {
-    if (!uuid) return;
-
-    const updatedElements = elements.map((element) => {
-      if (element.id === uuid) {
-        return {
-          ...element,
-          textAlign: alignment,
-        };
-      }
-      return element;
-    });
-
-    setElements(updatedElements);
-
-    if (logigrammeRef.current && logigrammeRef.current.updateData) {
-      logigrammeRef.current.updateData(updatedElements, lines);
-    }
-  };
-
-  // Fonction pour changer l'alignement vertical du texte
-  const changeTextVerticalAlign = (alignment) => {
-    if (!uuid) return;
-
-    const updatedElements = elements.map((element) => {
-      if (element.id === uuid) {
-        return {
-          ...element,
-          textVerticalAlign: alignment,
-        };
-      }
-      return element;
-    });
-
-    setElements(updatedElements);
-
-    if (logigrammeRef.current && logigrammeRef.current.updateData) {
-      logigrammeRef.current.updateData(updatedElements, lines);
-    }
-  };
-
-  // Fonction pour changer l'opacité
-  const changeOpacity = (newOpacity) => {
-    if (!uuid) return;
-
-    const updatedElements = elements.map((element) => {
-      if (element.id === uuid) {
-        return {
-          ...element,
-          opacity: newOpacity,
-        };
-      }
-      return element;
-    });
-
-    setElements(updatedElements);
-
-    if (logigrammeRef.current && logigrammeRef.current.updateData) {
-      logigrammeRef.current.updateData(updatedElements, lines);
-    }
-  };
+  const selectedElement = elements.find((el) => el.id === uuid);
 
   return (
     <div className="container-fluid position-relative" id="exm">
-      {/* Loading screen */}
       {isLoading && (
         <div className="loading-overlay">
           <div className="spinner-container">
@@ -389,125 +361,64 @@ export default function Home() {
         </div>
       )}
 
-      {/* Element editing menu - Always present but only visible when an element is selected */}
-
       <div
         className={`mainMenu2 p-0 row position-absolute ${
           menuVisible ? "visible" : "invisible"
         }`}
       >
         <div className="d-flex text-light menu">
-          {/* Fond Color */}
-          <div className="d-flex flex-column align-items-center mx-1">
-            <PopoverPicker
-              color={color}
-              onChange={(newColor) => {
-                setColor(newColor);
-                changeShapeColor(newColor);
-              }}
-            />
-            <small style={{ fontSize: "10px", color: "#888" }}>Fond</small>
-          </div>
+          <ColorPicker
+            value={color}
+            onChange={(newColor) => {
+              setColor(newColor);
+              changeShapeColor(newColor);
+            }}
+            label="Fond"
+          />
 
-          {/* Border Color */}
-          <div className="d-flex flex-column align-items-center mx-1 ">
-            <PopoverPicker
-              color={
-                elements.find((el) => el.id === uuid)?.borderColor || "#808080"
-              }
-              onChange={(newColor) => changeBorderColor(newColor)}
-            />
-            <small style={{ fontSize: "10px", color: "#888" }}>Bordure</small>
-          </div>
+          <ColorPicker
+            value={selectedElement?.borderColor || "#808080"}
+            onChange={changeBorderColor}
+            label="Bordure"
+          />
 
-          {/* Opacity Slider */}
           <div className="d-flex flex-column align-items-center mx-1">
             <input
               type="range"
               min="0.1"
               max="1"
               step="0.1"
-              value={elements.find((el) => el.id === uuid)?.opacity || 1}
+              value={selectedElement?.opacity || 1}
               onChange={(e) => changeOpacity(parseFloat(e.target.value))}
               className="form-range"
               style={{ width: "50px" }}
             />
             <small style={{ fontSize: "10px", color: "#888" }}>Opacité</small>
           </div>
+
           <span className="line"></span>
-          {/* Text Button */}
+
           <img
             src="/icons/addTextIcon.png"
             onClick={manageInput}
             alt="Text"
             style={{ cursor: "pointer", opacity: menuVisible ? 1 : 0.5 }}
           />
-          {/* Text Color */}
-          <div className="d-flex flex-column align-items-center mx-1">
-            <PopoverPicker
-              color={
-                elements.find((el) => el.id === uuid)?.textColor || "#000000"
-              }
-              onChange={(newColor) => changeTextColor(newColor)}
-            />
-            <small style={{ fontSize: "10px", color: "#888" }}>Texte</small>
-          </div>
 
-          {/* Text Alignment */}
-          <div className="d-flex flex-column align-items-center mx-1">
-            <div className="d-flex">
-              <button
-                className="btn btn-sm btn-light p-1 mx-1"
-                onClick={() => changeTextAlign("left")}
-                title="Aligner à gauche"
-              >
-                ⟨
-              </button>
-              <button
-                className="btn btn-sm btn-light p-1 mx-1"
-                onClick={() => changeTextAlign("center")}
-                title="Centrer"
-              >
-                ≡
-              </button>
-              <button
-                className="btn btn-sm btn-light p-1 mx-1"
-                onClick={() => changeTextAlign("right")}
-                title="Aligner à droite"
-              >
-                ⟩
-              </button>
-            </div>
-          </div>
+          <ColorPicker
+            value={selectedElement?.textColor || "#000000"}
+            onChange={changeTextColor}
+            label="Texte"
+          />
 
-          {/* Vertical Alignment */}
-          <div className="d-flex flex-column align-items-center mx-1">
-            <div className="d-flex">
-              <button
-                className="btn btn-sm btn-light p-1 mx-1"
-                onClick={() => changeTextVerticalAlign("top")}
-                title="Aligner en haut"
-              >
-                ⌃
-              </button>
-              <button
-                className="btn btn-sm btn-light p-1 mx-1"
-                onClick={() => changeTextVerticalAlign("middle")}
-                title="Centrer verticalement"
-              >
-                ⚬
-              </button>
-              <button
-                className="btn btn-sm btn-light p-1 mx-1"
-                onClick={() => changeTextVerticalAlign("bottom")}
-                title="Aligner en bas"
-              >
-                ⌄
-              </button>
-            </div>
-          </div>
+          <AlignmentButtons type="text" onChange={changeTextAlign} />
+          <AlignmentButtons
+            type="vertical"
+            onChange={changeTextVerticalAlign}
+          />
+
           <span className="line"></span>
-          {/* Delete Button */}
+
           <img
             onClick={deleteElement}
             src="/icons/trash.png"
@@ -519,96 +430,64 @@ export default function Home() {
 
       <div className="row">
         <div className="mainMenu col-7 p-0 row position-absolute">
-          <div className="d-flex text-light menu ">
-            <div onClick={() => setTool({ tool: 0 })}>
-              <img
-                src={
-                  tool.tool == 0
-                    ? "icons/cursor_active.png"
-                    : "icons/cursor.png"
-                }
-                alt="Cursor"
-              />
-            </div>
+          <div className="d-flex text-light menu">
+            <ToolButton
+              toolId={0}
+              activeIcon="icons/cursor_active.png"
+              inactiveIcon="icons/cursor.png"
+              alt="Cursor"
+            />
+            <ToolButton
+              toolId={1}
+              activeIcon="icons/rectangle_active.png"
+              inactiveIcon="icons/rectangle.png"
+              alt="Rectangle"
+            />
+            <ToolButton
+              toolId={2}
+              activeIcon="icons/circle_active.png"
+              inactiveIcon="icons/circle.png"
+              alt="Circle"
+            />
+            <ToolButton
+              toolId={3}
+              activeIcon="icons/losange_active.png"
+              inactiveIcon="icons/losange.png"
+              alt="Diamond"
+            />
+            <ToolButton
+              toolId={4}
+              activeIcon="icons/rhomboide_active.png"
+              inactiveIcon="icons/rhomboide.png"
+              alt="Parallelogram"
+            />
+            <ToolButton
+              toolId={5}
+              activeIcon="icons/note_active.png"
+              inactiveIcon="icons/note.png"
+              alt="Note"
+            />
+            <ToolButton
+              toolId={6}
+              activeIcon="icons/arrow_active.png"
+              inactiveIcon="icons/arrow.png"
+              alt="Arrow"
+            />
+            <ToolButton
+              toolId={7}
+              activeIcon="icons/dotted_arrow_active.png"
+              inactiveIcon="icons/dotted_arrow.png"
+              alt="Dotted Arrow"
+            />
+            <ToolButton
+              toolId={8}
+              activeIcon="icons/dots_active.png"
+              inactiveIcon="icons/dots.png"
+              alt="Dots"
+            />
 
-            <div onClick={() => setTool({ tool: 1 })}>
-              <img
-                src={
-                  tool.tool == 1
-                    ? "icons/rectangle_active.png"
-                    : "icons/rectangle.png"
-                }
-                alt="Rectangle"
-              />
-            </div>
-            <div onClick={() => setTool({ tool: 2 })}>
-              <img
-                src={
-                  tool.tool == 2
-                    ? "icons/circle_active.png"
-                    : "icons/circle.png"
-                }
-                alt="Circle"
-              />
-            </div>
-            <div onClick={() => setTool({ tool: 3 })}>
-              <img
-                src={
-                  tool.tool == 3
-                    ? "icons/losange_active.png"
-                    : "icons/losange.png"
-                }
-                alt="Diamond"
-              />
-            </div>
-            <div onClick={() => setTool({ tool: 4 })}>
-              <img
-                src={
-                  tool.tool == 4
-                    ? "icons/rhomboide_active.png"
-                    : "icons/rhomboide.png"
-                }
-                alt="Parallelogram"
-              />
-            </div>
-            <div onClick={() => setTool({ tool: 5 })}>
-              <img
-                src={
-                  tool.tool == 5 ? "icons/note_active.png" : "icons/note.png"
-                }
-                alt="Note"
-              />
-            </div>
-
-            <div onClick={() => setTool({ tool: 6 })}>
-              <img
-                src={
-                  tool.tool == 6 ? "icons/arrow_active.png" : "icons/arrow.png"
-                }
-                alt="Arrow"
-              />
-            </div>
-            <div onClick={() => setTool({ tool: 7 })}>
-              <img
-                src={
-                  tool.tool == 7
-                    ? "icons/dotted_arrow_active.png"
-                    : "icons/dotted_arrow.png"
-                }
-                alt="Dotted Arrow"
-              />
-            </div>
-            <div onClick={() => setTool({ tool: 8 })}>
-              <img
-                src={
-                  tool.tool == 8 ? "icons/dots_active.png" : "icons/dots.png"
-                }
-                alt="Dots"
-              />
-            </div>
-            {/* Zoom Controls */}
             <div className="me-5 pe-5">{!isLoading && <ZoomControls />}</div>
-            {/* Save and import buttons */}
+
             <div className="ms-auto d-flex me-2" onClick={saveToJson}>
               <span
                 className="material-symbols-outlined pictoColorGray"
@@ -617,14 +496,13 @@ export default function Home() {
                 Sauver
               </span>
             </div>
+
             <div className="custom-file-input">
               <input
                 type="file"
                 id="fileInput"
                 onChange={(e) =>
-                  e.target.files && e.target.files[0]
-                    ? importJsonFile(e.target.files[0])
-                    : null
+                  e.target.files?.[0] && importJsonFile(e.target.files[0])
                 }
                 style={{ display: "none" }}
                 accept=".json"
@@ -640,14 +518,13 @@ export default function Home() {
             </div>
           </div>
         </div>
+
         <div
           onMouseDown={() => {
-            const elements = document.querySelectorAll(".shape-input");
-            if (elements.length !== 0) {
-              elements.forEach((element) => {
-                element.style.zIndex = "1";
-              });
-            }
+            const textInputs = document.querySelectorAll(".shape-input");
+            textInputs.forEach((element) => {
+              element.style.zIndex = "1";
+            });
           }}
         >
           {!isLoading && isComponentMounted && (
